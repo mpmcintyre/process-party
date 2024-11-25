@@ -1,0 +1,18 @@
+# Example xproc configuration file
+
+[[processes]]
+name = "frontend"
+command = "npm"
+args = ["run", "dev"]
+prefix = "FRONT"
+color = "green"
+on_failure = "kill"
+on_complete = "wait"
+
+[[processes]]
+name = "backend"
+command = "go"
+args = ["run", "main.go"]
+prefix = "BACK"
+color = "blue"
+on_failure = "kill"
