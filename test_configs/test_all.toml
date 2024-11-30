@@ -1,0 +1,7 @@
+[[processes]]
+name = "backend"
+command = "go"
+args = ["run", "main.go"]
+prefix = "BACK"
+color = "blue"
+on_failure = "buzzkill"

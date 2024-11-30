@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	party "github.com/mpmcintyre/process-party/internal"
+	runner "github.com/mpmcintyre/process-party/internal"
 	"github.com/spf13/cobra"
 )
 
@@ -29,28 +29,40 @@ to quickly create a Cobra application.`,
 			fmt.Println("Please provide either a directory or execution commands to run in parallel")
 			return
 		}
-		commander := party.New()
+
+		config := runner.CreateConfig()
+		execPrefix := ""
+
 		if len(args) != 0 {
-			err := commander.AddFile(args[0])
+			err := config.ParseFile(args[0])
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
+			execPrefix = "-e"
 		}
 
-		for _, arg := range args {
-			fmt.Println(arg)
+		for _, cmd := range execCommands {
+			p := runner.Process{
+				Command: cmd,
+				Prefix:  execPrefix,
+			}
+			config.Processes = append(config.Processes, p)
 		}
 
-		for _, flags := range execCommands {
-			fmt.Println(flags)
-			// exec.Command("sh", "-c", arg).Run()
+		contexts := []runner.Context{}
+
+		for _, process := range config.Processes {
+			contexts = append(contexts, runner.CreateContext(
+				process,
+			))
 		}
+
+		context := runner.CreateContext()
+
 	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
@@ -61,16 +73,5 @@ func Execute() {
 var execCommands []string
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.pparty.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
 	rootCmd.Flags().StringSliceVar(&execCommands, "e", execCommands, "Execute command (can be used multiple times)")
-	rootCmd.Flags().String("file", "", "cfg ./tools")
-
-	// rootCmd.Flags().BoolVarP(&onlyDigits, "digits", "d", false, "Count only digits")
 }
