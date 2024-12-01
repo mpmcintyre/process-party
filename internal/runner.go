@@ -2,6 +2,7 @@ package runner
 
 // Custom writers-  https://medium.com/@shubhamagrawal094/custom-writer-in-golang-171dd2cac7e0
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -19,7 +20,6 @@ type Context struct {
 	StdIn        chan string
 	EndOfCommand chan string
 	BuzzKill     chan bool
-	w            io.Writer
 	wg           *sync.WaitGroup
 	// outb, errb   bytes.Buffer
 }
@@ -105,13 +105,9 @@ func (c *Context) Run() {
 
 	log.Printf("Starting command %s", c.Process.Name)
 	cmd := exec.Command(c.Process.Command, c.Process.Args...)
+	cmd.Env = os.Environ() // Set the full environment, including PATH
+
 	cmdIn, err := cmd.StdinPipe()
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err != nil {
-		log.Fatal(err)
-	}
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -120,6 +116,8 @@ func (c *Context) Run() {
 	errorWriter := &customWriter{w: os.Stdout, severity: "error", process: c.Process}
 	cmd.Stdout = infoWriter
 	cmd.Stderr = errorWriter
+	// exec.CommandContext()
+	displayedPid := false
 	startErr := cmd.Start()
 
 cmdLoop:
@@ -132,50 +130,75 @@ cmdLoop:
 		case kill := <-c.BuzzKill:
 			if kill {
 				infoWriter.Write([]byte("Recieved buzzkill command"))
-				cmd.Process.Signal(os.Kill)
+				startTime := time.Now()
+				timeout := 3 * time.Second
+				timedOut := false
+				for {
+					elapsed := time.Since(startTime)
+					if elapsed > timeout {
+						timedOut = true
+						break
+					}
+					if cmd.Process != nil {
+						break
+					}
+
+				}
+				if !timedOut {
+					cmd.Process.Signal(os.Kill)
+				}
 				break cmdLoop
 			}
 
 		default:
 			// Handle the process exiting
+
 			if cmd.ProcessState.ExitCode() > 0 || startErr != nil {
 				if cmd.ProcessState.ExitCode() == 0 {
-					c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
+					startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
 				} else if startErr != nil {
 					errorWriter.Write([]byte(startErr.Error()))
-					c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
+					startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
 				} else {
 					infoWriter.Write([]byte("Process exited"))
 					c.EndOfCommand <- c.Process.Name
-					c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
+					startErr = c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
 				}
 
 				// If the end commands are anything else we dont give a shit
 				// If the process is restarted this should be false
-				break cmdLoop
+				if cmd.ProcessState.ExitCode() > 0 || startErr != nil {
+					break cmdLoop
+				}
+			}
+			if !displayedPid {
+				infoWriter.Write([]byte(fmt.Sprintf("PID = %d", cmd.Process.Pid)))
+				displayedPid = true
+			}
+
+			if cmd.ProcessState == nil {
+				startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
+				if cmd.ProcessState == nil || cmd.ProcessState.ExitCode() > 0 || startErr != nil {
+					break cmdLoop
+				}
 			}
 
 		}
 	}
-
-	infoWriter.Write([]byte("Exiting context"))
-
 	cmd.Wait()
+	infoWriter.Write([]byte("~Exiting context~"))
 	c.wg.Done()
 }
 
-func (c *Context) handleCloseConditions(writer customWriter, cmd *exec.Cmd, exitHandler ExitCommand) {
-	writer.Write([]byte(c.Process.OnComplete))
-	writer.Write([]byte(c.Process.OnFailure))
-
+func (c *Context) handleCloseConditions(writer customWriter, cmd *exec.Cmd, exitHandler ExitCommand) error {
 	if exitHandler == ExitCommandBuzzkill {
 		writer.Write([]byte("Process exited - Buzzkilling"))
 		c.BuzzKill <- true
+		return errors.New("exit code 1")
 	}
 	if exitHandler == ExitCommandRestart {
 		writer.Write([]byte("Process exited - Restarting"))
-		cmd = exec.Command(c.Process.Command, c.Process.Args...)
-		cmd.Start()
-		cmd.Stdout = c.w
+		return cmd.Start()
 	}
+	return errors.New("exit code 1")
 }

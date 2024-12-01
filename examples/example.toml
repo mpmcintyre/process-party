@@ -1,5 +1,9 @@
 # Example xproc configuration file
 
+show_timestamp = true
+indicate_every_line=true
+
+
 [[processes]]
 name = "echo"
 command = "echo hjello"
@@ -14,6 +18,12 @@ command = "go"
 args = ["run", "main.go"]
 prefix = "BACK"
 color = "blue"
-show_timestamp = true
 on_failure = "buzzkill"
-indicate_every_line=true
+
+[[processes]]
+name = "example fail"
+command = "go"
+args = ["run", "main.go"]
+prefix = "BACK"
+color = "blue"
+on_failure = "buzzkill"

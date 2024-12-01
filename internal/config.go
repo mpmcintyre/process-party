@@ -27,13 +27,15 @@ type (
 		Color            string      `toml:"color"`
 		OnFailure        ExitCommand `toml:"on_failure"`
 		OnComplete       ExitCommand `toml:"on_complete,omitempty"`
-		ShowTimestamp    bool        `toml:"show_timestamp"`
-		SeperateNewLines bool        `toml:"indicate_every_line"`
+		SeperateNewLines bool
+		ShowTimestamp    bool
 	}
 
 	Config struct {
-		Processes   []Process `toml:"processes"`
-		filePresent bool
+		Processes        []Process `toml:"processes"`
+		SeperateNewLines bool      `toml:"indicate_every_line"`
+		ShowTimestamp    bool      `toml:"show_timestamp"`
+		filePresent      bool
 	}
 )
 
@@ -44,7 +46,12 @@ const (
 )
 
 func CreateConfig() *Config {
-	return &Config{}
+	return &Config{
+		Processes:        []Process{},
+		SeperateNewLines: true,
+		ShowTimestamp:    true,
+		filePresent:      false,
+	}
 }
 
 func (c *Config) ParseFile(path string) error {
@@ -58,9 +65,12 @@ func (c *Config) ParseFile(path string) error {
 	if err2 != nil {
 		return err2
 	}
+
 	fmt.Printf("Found %d processes in %s\n", len(c.Processes), path)
-	for _, c := range c.Processes {
-		fmt.Printf("%#v\n", c.Name)
+	for i := range c.Processes {
+		fmt.Printf("%#v\n", c.Processes[i].Name)
+		c.Processes[i].SeperateNewLines = c.SeperateNewLines
+		c.Processes[i].ShowTimestamp = c.ShowTimestamp
 	}
 	c.filePresent = true
 	return nil
