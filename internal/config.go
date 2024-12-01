@@ -9,15 +9,7 @@ import (
 
 type (
 	ExitCommand string
-
-	OnFailure struct {
-		Id      string
-		Command ExitCommand
-	}
-	OnComplete struct {
-		Id      string
-		Command ExitCommand
-	}
+	ColourCode  string
 
 	Process struct {
 		Name             string      `toml:"name"`
@@ -43,6 +35,15 @@ const (
 	ExitCommandBuzzkill ExitCommand = "buzzkill"
 	ExitCommandWait     ExitCommand = "wait"
 	ExitCommandRestart  ExitCommand = "restart"
+)
+
+const (
+	ColourCmdYellow ColourCode = "yellow"
+	ColourCmdBlue   ColourCode = "blue"
+	ColourCmdGreen  ColourCode = "green"
+	ColourCmdRed    ColourCode = "red"
+	ColourCmdOrange ColourCode = "orange"
+	ColourCmdWhite  ColourCode = "white"
 )
 
 func CreateConfig() *Config {
