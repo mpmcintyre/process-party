@@ -7,7 +7,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
+	"time"
 
 	color "github.com/fatih/color"
 )
@@ -21,10 +23,46 @@ type Context struct {
 	wg           *sync.WaitGroup
 	// outb, errb   bytes.Buffer
 }
+type customWriter struct {
+	w        io.Writer
+	severity string
+	process  Process
+}
+
+func (e customWriter) Write(p []byte) (int, error) {
+
+	prefix := "[" + e.process.Prefix + "]"
+	message := string(p)
+	now := time.Now()
+
+	// Format the time as HH:MM:SS:MS
+	timeString := fmt.Sprintf("%02d:%02d:%02d:%03d",
+		now.Hour(),
+		now.Minute(),
+		now.Second(),
+		now.Nanosecond()/1e6) // Convert nanoseconds to milliseconds
+
+	x := strings.Split(message, "\n")
+
+	for _, message := range x {
+		if e.process.ShowTimestamp {
+			message = timeString + "	" + message
+		}
+		prefix = color.BlueString(prefix)
+
+		n, err := e.w.Write([]byte(prefix + " " + message + "\n"))
+		if err != nil {
+			return n, err
+		}
+
+	}
+
+	return len(p), nil
+}
 
 func (c Context) Write(p []byte) (int, error) {
 	color.Red("Prints %s in blue.", "text")
-	n, err := c.w.Write(p)
+	n, err := os.Stdout.Write(p)
 	if err != nil {
 		return n, err
 	}
@@ -60,11 +98,14 @@ func (c *Context) Run() {
 		log.Fatal(err)
 	}
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	w1 := &customWriter{w: os.Stdout, severity: "info", process: c.Process}
+	w2 := &customWriter{w: os.Stdout, severity: "error", process: c.Process}
+	cmd.Stdout = w1
+	cmd.Stderr = w2
+	// cmd.Stderr = c
 	err = cmd.Start()
 	if err != nil {
-		log.Fatal(err)
+		// log.Fatal(err)
 	}
 	buffOut := []byte{}
 	buffErr := []byte{}

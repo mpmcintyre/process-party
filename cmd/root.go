@@ -4,7 +4,7 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"sync"
 
@@ -25,10 +25,9 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 && len(execCommands) == 0 {
-			fmt.Println("Please provide either a directory or execution commands to run in parallel")
-			return
+			return errors.New("Please provide either a directory or execution commands to run in parallel")
 		}
 
 		config := runner.CreateConfig()
@@ -37,8 +36,7 @@ to quickly create a Cobra application.`,
 		if len(args) != 0 {
 			err := config.ParseFile(args[0])
 			if err != nil {
-				fmt.Println(err)
-				return
+				return err
 			}
 			execPrefix = "-e"
 		}
@@ -75,8 +73,7 @@ to quickly create a Cobra application.`,
 		}
 		wg.Wait()
 
-		fmt.Printf("")
-
+		return nil
 	},
 }
 

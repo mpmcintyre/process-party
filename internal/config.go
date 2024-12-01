@@ -20,13 +20,15 @@ type (
 	}
 
 	Process struct {
-		Name       string      `toml:"name"`
-		Command    string      `toml:"command"`
-		Args       []string    `toml:"args"`
-		Prefix     string      `toml:"prefix"`
-		Color      string      `toml:"color"`
-		OnFailure  ExitCommand `toml:"on_failure"`
-		OnComplete ExitCommand `toml:"on_complete,omitempty"`
+		Name             string      `toml:"name"`
+		Command          string      `toml:"command"`
+		Args             []string    `toml:"args"`
+		Prefix           string      `toml:"prefix"`
+		Color            string      `toml:"color"`
+		OnFailure        ExitCommand `toml:"on_failure"`
+		OnComplete       ExitCommand `toml:"on_complete,omitempty"`
+		ShowTimestamp    bool        `toml:"show_timestamp"`
+		SeperateNewLines bool        `toml:"indicate_every_line"`
 	}
 
 	Config struct {
