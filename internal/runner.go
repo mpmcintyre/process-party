@@ -29,6 +29,16 @@ type customWriter struct {
 	process  Process
 }
 
+func emptyMessage(s string) bool {
+
+	if s == "" || s == " " {
+		return true
+	}
+	x := strings.Replace(s, " ", "", -1)
+
+	return x == ""
+}
+
 func (e customWriter) Write(p []byte) (int, error) {
 
 	prefix := "[" + e.process.Prefix + "]"
@@ -42,11 +52,16 @@ func (e customWriter) Write(p []byte) (int, error) {
 		now.Second(),
 		now.Nanosecond()/1e6) // Convert nanoseconds to milliseconds
 
+	message = strings.Replace(message, "\r", "", -1)
+	message = strings.Replace(message, "\n\n", "", -1)
+	message = strings.Replace(message, "\r\n", "", -1)
 	x := strings.Split(message, "\n")
 
 	if e.process.SeperateNewLines {
 		for _, message := range x {
-
+			if emptyMessage(message) {
+				continue
+			}
 			prefix = color.BlueString(prefix)
 			if e.severity == "error" {
 				message = color.RedString(message)
@@ -61,7 +76,6 @@ func (e customWriter) Write(p []byte) (int, error) {
 
 		}
 	} else {
-
 		prefix = color.BlueString(prefix)
 		if e.severity == "error" {
 			message = color.RedString(message)
@@ -174,13 +188,6 @@ cmdLoop:
 			if !displayedPid {
 				infoWriter.Write([]byte(fmt.Sprintf("PID = %d", cmd.Process.Pid)))
 				displayedPid = true
-			}
-
-			if cmd.ProcessState == nil {
-				startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
-				if cmd.ProcessState == nil || cmd.ProcessState.ExitCode() > 0 || startErr != nil {
-					break cmdLoop
-				}
 			}
 
 		}
