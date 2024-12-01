@@ -8,20 +8,37 @@ import (
 )
 
 type (
+	ExitCommand string
+
+	OnFailure struct {
+		Id      string
+		Command ExitCommand
+	}
+	OnComplete struct {
+		Id      string
+		Command ExitCommand
+	}
+
 	Process struct {
-		Name       string   `toml:"name"`
-		Command    string   `toml:"command"`
-		Args       []string `toml:"args"`
-		Prefix     string   `toml:"prefix"`
-		Color      string   `toml:"color"`
-		OnFailure  string   `toml:"on_failure"`
-		OnComplete string   `toml:"on_complete,omitempty"`
+		Name       string      `toml:"name"`
+		Command    string      `toml:"command"`
+		Args       []string    `toml:"args"`
+		Prefix     string      `toml:"prefix"`
+		Color      string      `toml:"color"`
+		OnFailure  ExitCommand `toml:"on_failure"`
+		OnComplete ExitCommand `toml:"on_complete,omitempty"`
 	}
 
 	Config struct {
 		Processes   []Process `toml:"processes"`
 		filePresent bool
 	}
+)
+
+const (
+	ExitCommandBuzzkill ExitCommand = "buzzkill"
+	ExitCommandWait     ExitCommand = "wait"
+	ExitCommandRestart  ExitCommand = "restart"
 )
 
 func CreateConfig() *Config {

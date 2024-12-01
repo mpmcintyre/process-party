@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	runner "github.com/mpmcintyre/process-party/internal"
 	"github.com/spf13/cobra"
@@ -50,15 +51,31 @@ to quickly create a Cobra application.`,
 			config.Processes = append(config.Processes, p)
 		}
 
+		var wg sync.WaitGroup
+		wg.Add(len(config.Processes))
+
 		contexts := []runner.Context{}
+
+		StdIn := make(chan string)
+		EndOfCommand := make(chan string)
+		BuzzKill := make(chan bool, 5)
 
 		for _, process := range config.Processes {
 			contexts = append(contexts, runner.CreateContext(
 				process,
+				&wg,
+				StdIn,
+				EndOfCommand,
+				BuzzKill,
 			))
 		}
 
-		context := runner.CreateContext()
+		for _, context := range contexts {
+			go context.Run()
+		}
+		wg.Wait()
+
+		fmt.Printf("")
 
 	},
 }

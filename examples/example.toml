@@ -1,18 +1,17 @@
 # Example xproc configuration file
 
 [[processes]]
-name = "frontend"
-command = "npm"
-args = ["run", "dev"]
+name = "echo"
+command = "echo hjello"
 prefix = "FRONT"
 color = "green"
-on_failure = "kill"
+on_failure = "buzzkill"
 on_complete = "wait"
 
 [[processes]]
-name = "backend"
+name = "example fail"
 command = "go"
 args = ["run", "main.go"]
 prefix = "BACK"
 color = "blue"
-on_failure = "kill"
+on_failure = "buzzkill"
