@@ -16,3 +16,4 @@ prefix = "BACK"
 color = "blue"
 show_timestamp = true
 on_failure = "buzzkill"
+indicate_every_line=true

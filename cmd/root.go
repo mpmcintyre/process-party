@@ -71,6 +71,7 @@ to quickly create a Cobra application.`,
 		for _, context := range contexts {
 			go context.Run()
 		}
+
 		wg.Wait()
 
 		return nil

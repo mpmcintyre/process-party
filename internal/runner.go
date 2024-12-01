@@ -44,17 +44,35 @@ func (e customWriter) Write(p []byte) (int, error) {
 
 	x := strings.Split(message, "\n")
 
-	for _, message := range x {
+	if e.process.SeperateNewLines {
+		for _, message := range x {
+
+			prefix = color.BlueString(prefix)
+			if e.severity == "error" {
+				message = color.RedString(message)
+			}
+			if e.process.ShowTimestamp {
+				message = timeString + "	" + message
+			}
+			n, err := e.w.Write([]byte(prefix + " " + message + "\n"))
+			if err != nil {
+				return n, err
+			}
+
+		}
+	} else {
+
+		prefix = color.BlueString(prefix)
+		if e.severity == "error" {
+			message = color.RedString(message)
+		}
 		if e.process.ShowTimestamp {
 			message = timeString + "	" + message
 		}
-		prefix = color.BlueString(prefix)
-
 		n, err := e.w.Write([]byte(prefix + " " + message + "\n"))
 		if err != nil {
 			return n, err
 		}
-
 	}
 
 	return len(p), nil
@@ -83,32 +101,26 @@ func CreateContext(p Process, wg *sync.WaitGroup, chanIn chan string, eoc chan s
 }
 
 func (c *Context) Run() {
+	// c.wg.Add(1)
+
 	log.Printf("Starting command %s", c.Process.Name)
 	cmd := exec.Command(c.Process.Command, c.Process.Args...)
 	cmdIn, err := cmd.StdinPipe()
 	if err != nil {
 		log.Fatal(err)
 	}
-	cmdOut, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Fatal(err)
 	}
-	cmdErr, err := cmd.StderrPipe()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	w1 := &customWriter{w: os.Stdout, severity: "info", process: c.Process}
-	w2 := &customWriter{w: os.Stdout, severity: "error", process: c.Process}
-	cmd.Stdout = w1
-	cmd.Stderr = w2
-	// cmd.Stderr = c
-	err = cmd.Start()
-	if err != nil {
-		// log.Fatal(err)
-	}
-	buffOut := []byte{}
-	buffErr := []byte{}
+	infoWriter := &customWriter{w: os.Stdout, severity: "info", process: c.Process}
+	errorWriter := &customWriter{w: os.Stdout, severity: "error", process: c.Process}
+	cmd.Stdout = infoWriter
+	cmd.Stderr = errorWriter
+	startErr := cmd.Start()
 
 cmdLoop:
 	for {
@@ -117,68 +129,53 @@ cmdLoop:
 		case <-c.StdIn:
 			log.Printf("Writing to input")
 			cmdIn.Write([]byte(<-c.StdIn))
-		case <-c.BuzzKill:
-			log.Printf("Sending buzzkill command")
-			cmd.Process.Signal(os.Kill)
-			break cmdLoop
+		case kill := <-c.BuzzKill:
+			if kill {
+				infoWriter.Write([]byte("Recieved buzzkill command"))
+				cmd.Process.Signal(os.Kill)
+				break cmdLoop
+			}
+
 		default:
 			// Handle the process exiting
-			if cmd.ProcessState.ExitCode() > 0 {
-				log.Printf("Process exited: %s", c.Process.Name)
-
+			if cmd.ProcessState.ExitCode() > 0 || startErr != nil {
 				if cmd.ProcessState.ExitCode() == 0 {
-					if c.Process.OnComplete == ExitCommandBuzzkill {
-						c.BuzzKill <- true
-						break
-					}
-					if c.Process.OnComplete == ExitCommandRestart {
-						cmd = exec.Command(c.Process.Command, c.Process.Args...)
-						cmdIn, _ = cmd.StdinPipe()
-						cmdOut, _ = cmd.StdoutPipe()
-						cmd.Start()
-						cmd.Stdout = c.w
-					}
+					c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
+				} else if startErr != nil {
+					errorWriter.Write([]byte(startErr.Error()))
+					c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
 				} else {
+					infoWriter.Write([]byte("Process exited"))
 					c.EndOfCommand <- c.Process.Name
-					if c.Process.OnFailure == ExitCommandBuzzkill {
-						c.BuzzKill <- true
-						break
-					}
-					if c.Process.OnFailure == ExitCommandRestart {
-						cmd = exec.Command(c.Process.Command, c.Process.Args...)
-						cmdIn, _ = cmd.StdinPipe()
-						cmdOut, _ = cmd.StdoutPipe()
-						cmd.Start()
-						cmd.Stdout = c.w
-					}
+					c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
 				}
 
 				// If the end commands are anything else we dont give a shit
 				// If the process is restarted this should be false
-				if cmd.ProcessState.Exited() {
-					break
-				}
+				break cmdLoop
 			}
-			cmdErr.Read(buffErr)
-			cmdOut.Read(buffOut)
 
-			if len(buffOut) > 0 {
-				color.Blue("[%s]:", c.Process.Name)
-				fmt.Printf("%s", string(buffOut))
-			}
-			if len(buffErr) > 0 {
-				color.Blue("[%s]:", c.Process.Name)
-				fmt.Printf("%s", string(buffOut))
-			}
 		}
 	}
 
-	log.Printf("Exiting context: %s", c.Process.Name)
-	// cmdIn.Write([]byte("hello grep\ngoodbye grep"))
-	// grepBytes, _ := io.ReadAll(cmdOut)
-	// cmdIn.Close()
-	// cmdOut.Close()
-	// cmdErr.Close()
+	infoWriter.Write([]byte("Exiting context"))
+
 	cmd.Wait()
 	c.wg.Done()
+}
+
+func (c *Context) handleCloseConditions(writer customWriter, cmd *exec.Cmd, exitHandler ExitCommand) {
+	writer.Write([]byte(c.Process.OnComplete))
+	writer.Write([]byte(c.Process.OnFailure))
+
+	if exitHandler == ExitCommandBuzzkill {
+		writer.Write([]byte("Process exited - Buzzkilling"))
+		c.BuzzKill <- true
+	}
+	if exitHandler == ExitCommandRestart {
+		writer.Write([]byte("Process exited - Restarting"))
+		cmd = exec.Command(c.Process.Command, c.Process.Args...)
+		cmd.Start()
+		cmd.Stdout = c.w
+	}
 }
