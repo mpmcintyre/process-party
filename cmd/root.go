@@ -12,6 +12,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type BackendChannels struct {
+	StdIn        chan string
+	BuzzKillSend chan bool
+}
+
+type FrontendChannels struct {
+	IrishGoodbye chan string
+	BuzzKillSend chan bool
+}
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "process-party",
@@ -55,25 +65,37 @@ to quickly create a Cobra application.`,
 		contexts := []runner.Context{}
 
 		StdIn := make(chan string)
-		EndOfCommand := make(chan string)
+		IrishGoodbye := make(chan string)
 		BuzzKillSend := make(chan bool)
-		BuzzKillRec := []chan bool{}
+		BuzzKillRecieveChannels := []chan bool{}
 
-		for index, process := range config.Processes {
-			BuzzKillRec = append(BuzzKillRec, make(chan bool))
+		for _, process := range config.Processes {
+
+			// Create the receive channel
+			buzzKillRecChan := make(chan bool)
+			BuzzKillRecieveChannels = append(BuzzKillRecieveChannels, buzzKillRecChan)
+
+			// Create context
 			contexts = append(contexts, runner.CreateContext(
 				process,
 				&wg,
 				StdIn,
-				EndOfCommand,
+				IrishGoodbye,
 				BuzzKillSend,
-				BuzzKillRec[index],
+				buzzKillRecChan,
 			))
+
+			// Safely pass the correct channel in a goroutine
 			go func() {
-				BuzzKillRec[index] <- BuzzKillSend
+				// Only send if the channel is ready to receive
+				select {
+				case <-buzzKillRecChan:
+					BuzzKillSend <- true
+				default:
+					// Optional: handle case where send would block
+				}
 			}()
 		}
-
 		for _, context := range contexts {
 			go context.Run()
 		}
