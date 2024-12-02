@@ -21,9 +21,9 @@ color = "blue"
 on_failure = "buzzkill"
 
 [[processes]]
-name = "example fail"
+name = "example fail2"
 command = "go"
 args = ["run", "main.go"]
-prefix = "BACK"
-color = "blue"
+prefix = "BACK2"
+color = "red"
 on_failure = "buzzkill"

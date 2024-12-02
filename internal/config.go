@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
+	color "github.com/fatih/color"
 )
 
 type (
@@ -16,7 +17,7 @@ type (
 		Command          string      `toml:"command"`
 		Args             []string    `toml:"args"`
 		Prefix           string      `toml:"prefix"`
-		Color            string      `toml:"color"`
+		Color            ColourCode  `toml:"color"`
 		OnFailure        ExitCommand `toml:"on_failure"`
 		OnComplete       ExitCommand `toml:"on_complete,omitempty"`
 		SeperateNewLines bool
@@ -38,13 +39,35 @@ const (
 )
 
 const (
-	ColourCmdYellow ColourCode = "yellow"
-	ColourCmdBlue   ColourCode = "blue"
-	ColourCmdGreen  ColourCode = "green"
-	ColourCmdRed    ColourCode = "red"
-	ColourCmdOrange ColourCode = "orange"
-	ColourCmdWhite  ColourCode = "white"
+	ColourCmdYellow  ColourCode = "yellow"
+	ColourCmdBlue    ColourCode = "blue"
+	ColourCmdGreen   ColourCode = "green"
+	ColourCmdRed     ColourCode = "red"
+	ColourCmdCyan    ColourCode = "cyan"
+	ColourCmdWhite   ColourCode = "white"
+	ColourCmdMagenta ColourCode = "magenta"
 )
+
+func (p *Process) GetFgColour() func(format string, a ...interface{}) string {
+	switch p.Color {
+	case ColourCmdYellow:
+		return color.YellowString
+	case ColourCmdBlue:
+		return color.BlueString
+	case ColourCmdGreen:
+		return color.GreenString
+	case ColourCmdRed:
+		return color.RedString
+	case ColourCmdCyan:
+		return color.CyanString
+	case ColourCmdWhite:
+		return color.WhiteString
+	case ColourCmdMagenta:
+		return color.MagentaString
+	default:
+		return color.WhiteString
+	}
+}
 
 func CreateConfig() *Config {
 	return &Config{

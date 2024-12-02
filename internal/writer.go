@@ -49,7 +49,8 @@ func (e customWriter) Write(p []byte) (int, error) {
 			if emptyMessage(message) {
 				continue
 			}
-			prefix = color.BlueString(prefix)
+			colourFunc := e.process.GetFgColour()
+			prefix = colourFunc(prefix)
 			if e.severity == "error" {
 				message = color.RedString(message)
 			}
@@ -63,7 +64,8 @@ func (e customWriter) Write(p []byte) (int, error) {
 
 		}
 	} else {
-		prefix = color.BlueString(prefix)
+		colourFunc := e.process.GetFgColour()
+		prefix = colourFunc(prefix)
 		if e.severity == "error" {
 			message = color.RedString(message)
 		}
