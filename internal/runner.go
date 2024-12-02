@@ -15,17 +15,19 @@ type Context struct {
 	Process      Process
 	StdIn        chan string
 	EndOfCommand chan string
-	BuzzKill     chan bool
+	BuzzKillSend chan bool
+	BuzzKillRec  chan bool
 	wg           *sync.WaitGroup
 	// outb, errb   bytes.Buffer
 }
 
-func CreateContext(p Process, wg *sync.WaitGroup, chanIn chan string, eoc chan string, bk chan bool) Context {
+func CreateContext(p Process, wg *sync.WaitGroup, chanIn chan string, eoc chan string, bks chan bool, bkr chan bool) Context {
 	return Context{
 		Process:      p,
 		StdIn:        chanIn,
 		EndOfCommand: eoc,
-		BuzzKill:     bk,
+		BuzzKillSend: bks,
+		BuzzKillRec:  bkr,
 		wg:           wg,
 	}
 }
@@ -57,7 +59,7 @@ cmdLoop:
 		case <-c.StdIn:
 			log.Printf("Writing to input")
 			cmdIn.Write([]byte(<-c.StdIn))
-		case kill := <-c.BuzzKill:
+		case kill := <-c.BuzzKillRec:
 			if kill {
 				infoWriter.Write([]byte("Recieved buzzkill command"))
 				startTime := time.Now()
@@ -116,7 +118,7 @@ cmdLoop:
 func (c *Context) handleCloseConditions(writer customWriter, cmd *exec.Cmd, exitHandler ExitCommand) error {
 	if exitHandler == ExitCommandBuzzkill {
 		writer.Write([]byte("Process exited - Buzzkilling"))
-		c.BuzzKill <- true
+		c.BuzzKillSend <- true
 		return errors.New("exit code 1")
 	}
 	if exitHandler == ExitCommandRestart {

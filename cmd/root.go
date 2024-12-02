@@ -56,16 +56,22 @@ to quickly create a Cobra application.`,
 
 		StdIn := make(chan string)
 		EndOfCommand := make(chan string)
-		BuzzKill := make(chan bool, 5)
+		BuzzKillSend := make(chan bool)
+		BuzzKillRec := []chan bool{}
 
-		for _, process := range config.Processes {
+		for index, process := range config.Processes {
+			BuzzKillRec = append(BuzzKillRec, make(chan bool))
 			contexts = append(contexts, runner.CreateContext(
 				process,
 				&wg,
 				StdIn,
 				EndOfCommand,
-				BuzzKill,
+				BuzzKillSend,
+				BuzzKillRec[index],
 			))
+			go func() {
+				BuzzKillRec[index] <- BuzzKillSend
+			}()
 		}
 
 		for _, context := range contexts {
