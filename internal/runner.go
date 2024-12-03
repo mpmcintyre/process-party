@@ -11,24 +11,32 @@ import (
 	"time"
 )
 
-type Context struct {
-	Process      Process
-	StdIn        chan string
+// Communication from task to main thread
+type TaskChannelsOut struct {
+	Buzzkill     chan bool
 	EndOfCommand chan string
-	BuzzKillSend chan bool
-	BuzzKillRec  chan bool
-	wg           *sync.WaitGroup
+}
+
+// Communication from main thread to all threads
+type MainChannelsOut struct {
+	Buzzkill chan bool
+	StdIn    chan string
+}
+
+type Context struct {
+	Process         Process
+	MainChannelsOut MainChannelsOut
+	TaskChannelsOut TaskChannelsOut
+	wg              *sync.WaitGroup
 	// outb, errb   bytes.Buffer
 }
 
-func CreateContext(p Process, wg *sync.WaitGroup, chanIn chan string, eoc chan string, bks chan bool, bkr chan bool) Context {
+func CreateContext(p Process, wg *sync.WaitGroup, mc MainChannelsOut, tc TaskChannelsOut) Context {
 	return Context{
-		Process:      p,
-		StdIn:        chanIn,
-		EndOfCommand: eoc,
-		BuzzKillSend: bks,
-		BuzzKillRec:  bkr,
-		wg:           wg,
+		Process:         p,
+		wg:              wg,
+		MainChannelsOut: mc,
+		TaskChannelsOut: tc,
 	}
 }
 
@@ -56,31 +64,28 @@ cmdLoop:
 	for {
 
 		select {
-		case <-c.StdIn:
-			log.Printf("Writing to input")
-			cmdIn.Write([]byte(<-c.StdIn))
-		case kill := <-c.BuzzKillRec:
-			if kill {
-				infoWriter.Write([]byte("Recieved buzzkill command"))
-				startTime := time.Now()
-				timeout := 3 * time.Second
-				timedOut := false
-				for {
-					elapsed := time.Since(startTime)
-					if elapsed > timeout {
-						timedOut = true
-						break
-					}
-					if cmd.Process != nil {
-						break
-					}
+		case value := <-c.MainChannelsOut.StdIn:
+			cmdIn.Write([]byte(value))
+		case <-c.MainChannelsOut.Buzzkill:
+			infoWriter.Write([]byte("Recieved buzzkill command"))
+			startTime := time.Now()
+			timeout := 3 * time.Second
+			timedOut := false
+			for {
+				elapsed := time.Since(startTime)
+				if elapsed > timeout {
+					timedOut = true
+					break
+				}
+				if cmd.Process != nil {
+					break
+				}
 
-				}
-				if !timedOut {
-					cmd.Process.Signal(os.Kill)
-				}
-				break cmdLoop
 			}
+			if !timedOut {
+				cmd.Process.Signal(os.Kill)
+			}
+			break cmdLoop
 
 		default:
 			// Handle the process exiting
@@ -93,7 +98,7 @@ cmdLoop:
 					startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
 				} else {
 					infoWriter.Write([]byte("Process exited"))
-					c.EndOfCommand <- c.Process.Name
+					c.TaskChannelsOut.EndOfCommand <- c.Process.Name
 					startErr = c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
 				}
 
@@ -118,7 +123,7 @@ cmdLoop:
 func (c *Context) handleCloseConditions(writer customWriter, cmd *exec.Cmd, exitHandler ExitCommand) error {
 	if exitHandler == ExitCommandBuzzkill {
 		writer.Write([]byte("Process exited - Buzzkilling"))
-		c.BuzzKillSend <- true
+		c.TaskChannelsOut.Buzzkill <- true
 		return errors.New("exit code 1")
 	}
 	if exitHandler == ExitCommandRestart {

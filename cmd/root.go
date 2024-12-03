@@ -5,22 +5,13 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"sync"
 
 	runner "github.com/mpmcintyre/process-party/internal"
 	"github.com/spf13/cobra"
 )
-
-type BackendChannels struct {
-	StdIn        chan string
-	BuzzKillSend chan bool
-}
-
-type FrontendChannels struct {
-	IrishGoodbye chan string
-	BuzzKillSend chan bool
-}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -37,7 +28,7 @@ to quickly create a Cobra application.`,
 	// has an action associated with it:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 && len(execCommands) == 0 {
-			return errors.New("Please provide either a directory or execution commands to run in parallel")
+			return errors.New("please provide either a directory or execution commands to run in parallel")
 		}
 
 		config := runner.CreateConfig()
@@ -64,38 +55,63 @@ to quickly create a Cobra application.`,
 
 		contexts := []runner.Context{}
 
-		StdIn := make(chan string)
-		IrishGoodbye := make(chan string)
-		BuzzKillSend := make(chan bool)
-		BuzzKillRecieveChannels := []chan bool{}
+		mainChannels := []runner.MainChannelsOut{}
 
-		for _, process := range config.Processes {
+		// mainChannels := runner.MainChannelsOut{
+		// 	Buzzkill: make(chan bool),
+		// 	StdIn:    make(chan string),
+		// }
 
-			// Create the receive channel
-			buzzKillRecChan := make(chan bool)
-			BuzzKillRecieveChannels = append(BuzzKillRecieveChannels, buzzKillRecChan)
+		runningProcessCount := len(config.Processes)
+
+		for index, process := range config.Processes {
+
+			// Create the task output channels
+			taskChannel := runner.TaskChannelsOut{
+				Buzzkill:     make(chan bool),
+				EndOfCommand: make(chan string),
+			}
+
+			// Create the task input channels
+			mainChannels = append(mainChannels,
+				runner.MainChannelsOut{
+					Buzzkill: make(chan bool),
+					StdIn:    make(chan string),
+				})
 
 			// Create context
 			contexts = append(contexts, runner.CreateContext(
 				process,
 				&wg,
-				StdIn,
-				IrishGoodbye,
-				BuzzKillSend,
-				buzzKillRecChan,
+				mainChannels[index],
+				taskChannel,
 			))
 
-			// Safely pass the correct channel in a goroutine
+			// Start listening to the threads channels fo multi-channel communcation
 			go func() {
-				// Only send if the channel is ready to receive
-				select {
-				case <-buzzKillRecChan:
-					BuzzKillSend <- true
-				default:
-					// Optional: handle case where send would block
+			monitorLoop:
+				for {
+					select {
+					case <-taskChannel.Buzzkill:
+						for i := range len(config.Processes) {
+							// Send to all other channels (not including this one)
+							if i != index {
+								mainChannels[i].Buzzkill <- true
+							}
+						}
+						break monitorLoop
+					case <-taskChannel.EndOfCommand:
+						runningProcessCount--
+						if runningProcessCount <= 0 {
+							fmt.Println("All processes exited")
+							break monitorLoop
+						}
+					}
 				}
+
 			}()
 		}
+		// Start the task
 		for _, context := range contexts {
 			go context.Run()
 		}
