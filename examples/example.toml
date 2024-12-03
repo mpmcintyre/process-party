@@ -3,6 +3,31 @@
 show_timestamp = true
 indicate_every_line=true
 
+[[processes]]
+name = "echo"
+command = "cmd"
+prefix = "FRONT"
+color = "green"
+on_failure = "buzzkill"
+on_complete = "wait"
+
+
+
+# [[processes]]
+# name = "example fail"
+# command = "go"
+# args = ["run", "main.go"]
+# prefix = "BACK"
+# color = "blue"
+# on_failure = "buzzkill"
+
+# [[processes]]
+# name = "example fail2"
+# command = "go"
+# args = ["run", "main.go"]
+# prefix = "BACK2"
+# color = "red"
+# on_failure = "buzzkill"
 
 # [[processes]]
 # name = "echo"
@@ -11,19 +36,3 @@ indicate_every_line=true
 # color = "green"
 # on_failure = "buzzkill"
 # on_complete = "wait"
-
-[[processes]]
-name = "example fail"
-command = "go"
-args = ["run", "main.go"]
-prefix = "BACK"
-color = "blue"
-on_failure = "buzzkill"
-
-[[processes]]
-name = "example fail2"
-command = "go"
-args = ["run", "main.go"]
-prefix = "BACK2"
-color = "red"
-on_failure = "buzzkill"

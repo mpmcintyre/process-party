@@ -57,12 +57,6 @@ to quickly create a Cobra application.`,
 		contexts := []runner.Context{}
 
 		mainChannels := []runner.MainChannelsOut{}
-
-		// mainChannels := runner.MainChannelsOut{
-		// 	Buzzkill: make(chan bool),
-		// 	StdIn:    make(chan string),
-		// }
-
 		runningProcessCount := len(config.Processes)
 
 		for index, process := range config.Processes {
@@ -117,10 +111,17 @@ to quickly create a Cobra application.`,
 			go context.Run()
 		}
 
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("Enter text: ")
-		text, _ := reader.ReadString('\n')
-		fmt.Println(text)
+		go func() {
+			reader := bufio.NewReader(os.Stdin)
+
+			for {
+				fmt.Print("Enter text: ")
+				text, _ := reader.ReadString('\n')
+				if runningProcessCount > 0 {
+					fmt.Println(text)
+				}
+			}
+		}()
 
 		wg.Wait()
 

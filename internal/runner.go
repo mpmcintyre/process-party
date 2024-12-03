@@ -56,9 +56,10 @@ func (c *Context) Run() {
 	errorWriter := &customWriter{w: os.Stdout, severity: "error", process: c.Process}
 	cmd.Stdout = infoWriter
 	cmd.Stderr = errorWriter
-	// exec.CommandContext()
 	displayedPid := false
 	startErr := cmd.Start()
+	// Go wait somewhere else lamo (*insert you cant sit with us meme*)
+	go cmd.Wait()
 
 cmdLoop:
 	for {
@@ -89,11 +90,10 @@ cmdLoop:
 
 		default:
 			// Handle the process exiting
-			if !displayedPid {
+			if !displayedPid && cmd.Process != nil {
 				infoWriter.Write([]byte(fmt.Sprintf("PID = %d", cmd.Process.Pid)))
 				displayedPid = true
 			}
-			cmd.Wait()
 			if cmd.ProcessState.ExitCode() > 0 || startErr != nil {
 				if cmd.ProcessState.ExitCode() == 0 {
 					startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
@@ -101,7 +101,7 @@ cmdLoop:
 					errorWriter.Write([]byte(startErr.Error()))
 					startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
 				} else {
-					infoWriter.Write([]byte("Process exited"))
+					fmt.Printf("%s process (%s) exited, saying irish goodbye\n", c.Process.Name, c.Process.Prefix)
 					c.TaskChannelsOut.EndOfCommand <- c.Process.Name
 					startErr = c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
 				}
