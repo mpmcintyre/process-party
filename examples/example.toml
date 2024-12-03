@@ -4,13 +4,13 @@ show_timestamp = true
 indicate_every_line=true
 
 
-[[processes]]
-name = "echo"
-command = "echo hjello"
-prefix = "FRONT"
-color = "green"
-on_failure = "buzzkill"
-on_complete = "wait"
+# [[processes]]
+# name = "echo"
+# command = "echo hjello"
+# prefix = "FRONT"
+# color = "green"
+# on_failure = "buzzkill"
+# on_complete = "wait"
 
 [[processes]]
 name = "example fail"

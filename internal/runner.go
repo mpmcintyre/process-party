@@ -89,7 +89,11 @@ cmdLoop:
 
 		default:
 			// Handle the process exiting
-
+			if !displayedPid {
+				infoWriter.Write([]byte(fmt.Sprintf("PID = %d", cmd.Process.Pid)))
+				displayedPid = true
+			}
+			cmd.Wait()
 			if cmd.ProcessState.ExitCode() > 0 || startErr != nil {
 				if cmd.ProcessState.ExitCode() == 0 {
 					startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
@@ -107,10 +111,6 @@ cmdLoop:
 				if cmd.ProcessState.ExitCode() > 0 || startErr != nil {
 					break cmdLoop
 				}
-			}
-			if !displayedPid {
-				infoWriter.Write([]byte(fmt.Sprintf("PID = %d", cmd.Process.Pid)))
-				displayedPid = true
 			}
 
 		}

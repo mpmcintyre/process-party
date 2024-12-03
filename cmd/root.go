@@ -4,6 +4,7 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -115,6 +116,11 @@ to quickly create a Cobra application.`,
 		for _, context := range contexts {
 			go context.Run()
 		}
+
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Enter text: ")
+		text, _ := reader.ReadString('\n')
+		fmt.Println(text)
 
 		wg.Wait()
 
