@@ -11,6 +11,7 @@ import (
 type (
 	ExitCommand string
 	ColourCode  string
+	ExitStatus  int
 
 	Process struct {
 		Name             string      `toml:"name"`
@@ -22,6 +23,7 @@ type (
 		OnComplete       ExitCommand `toml:"on_complete,omitempty"`
 		SeperateNewLines bool
 		ShowTimestamp    bool
+		Status           ExitStatus
 	}
 
 	Config struct {
@@ -36,6 +38,12 @@ const (
 	ExitCommandBuzzkill ExitCommand = "buzzkill"
 	ExitCommandWait     ExitCommand = "wait"
 	ExitCommandRestart  ExitCommand = "restart"
+)
+
+const (
+	ExitStatusRunning ExitStatus = iota
+	ExitStatusExited
+	ExitStatusFailed
 )
 
 const (

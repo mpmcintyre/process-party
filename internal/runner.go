@@ -96,11 +96,14 @@ cmdLoop:
 			}
 			if cmd.ProcessState.ExitCode() > 0 || startErr != nil {
 				if cmd.ProcessState.ExitCode() == 0 {
-					startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
+					c.Process.Status = ExitStatusExited
+					startErr = c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
 				} else if startErr != nil {
 					errorWriter.Write([]byte(startErr.Error()))
+					c.Process.Status = ExitStatusFailed
 					startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
 				} else {
+					c.Process.Status = ExitStatusExited
 					fmt.Printf("%s process (%s) exited, saying irish goodbye\n", c.Process.Name, c.Process.Prefix)
 					c.TaskChannelsOut.EndOfCommand <- c.Process.Name
 					startErr = c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
@@ -111,6 +114,7 @@ cmdLoop:
 				if cmd.ProcessState.ExitCode() > 0 || startErr != nil {
 					break cmdLoop
 				}
+				c.Process.Status = ExitStatusRunning
 			}
 
 		}

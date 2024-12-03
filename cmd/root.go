@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	runner "github.com/mpmcintyre/process-party/internal"
@@ -117,6 +118,18 @@ to quickly create a Cobra application.`,
 			for {
 				fmt.Print("Enter text: ")
 				text, _ := reader.ReadString('\n')
+				s := strings.Split(text, "]")
+				target := strings.Replace(s[0], "[", "", -1)
+				switch strings.ToLower(target) {
+				case "all":
+					// Broadcast to all processes
+				case "status":
+					// Print status of every command
+				case "exit":
+					// Exit all commands
+				default:
+					// Search for individual process still running
+				}
 				if runningProcessCount > 0 {
 					fmt.Println(text)
 				}
