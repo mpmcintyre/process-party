@@ -2,6 +2,7 @@ package runner
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -88,6 +89,34 @@ func CreateConfig() *Config {
 	}
 }
 
+func (c *Config) ParseInlineCmd(cmd string) error {
+	s := strings.Split(cmd, " ")
+	if len(s) == 0 {
+		return errors.New("empty command provided")
+	}
+	command := s[0]
+	args := []string{}
+	prefix := ""
+	if len(s) > 1 {
+		args = s[:1]
+	}
+
+	if c.filePresent {
+		prefix = fmt.Sprintf("cmd%d", len(c.Processes)+1)
+	}
+
+	p := Process{
+		Command:    command,
+		Args:       args,
+		Prefix:     prefix,
+		OnFailure:  ExitCommandBuzzkill,
+		OnComplete: ExitCommandWait,
+	}
+	c.Processes = append(c.Processes, p)
+
+	return nil
+}
+
 func (c *Config) ParseFile(path string) error {
 	buffer, err := os.ReadFile(path)
 	if err != nil {
@@ -96,51 +125,40 @@ func (c *Config) ParseFile(path string) error {
 	text := string(buffer)
 
 	extensions := strings.Split(path, ".")
-	switch extensions[len(extensions)] {
+	switch extensions[len(extensions)-1] {
 	case "toml":
-
 		_, err := toml.Decode(text, &c)
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Found %d processes in %s\n", len(c.Processes), path)
-		for i := range c.Processes {
-			fmt.Printf("%#v\n", c.Processes[i].Name)
-			c.Processes[i].SeperateNewLines = c.SeperateNewLines
-			c.Processes[i].ShowTimestamp = c.ShowTimestamp
-		}
-		c.filePresent = true
-
 	case "json":
-		jsonData, err := json.Marshal(text)
-		if err != nil {
-			return err
-		}
-		err = json.Unmarshal(jsonData, &c)
+		err = json.Unmarshal([]byte(text), &c)
 		if err != nil {
 			return err
 		}
 
 	case "yaml":
-		yamlData, err := yaml.Marshal(text)
-		if err != nil {
-			return err
-		}
-		err = yaml.Unmarshal(yamlData, &c)
+		err = yaml.Unmarshal([]byte(text), &c)
 		if err != nil {
 			return err
 		}
 	case "yml":
-		yamlData, err := yaml.Marshal(text)
+		err = yaml.Unmarshal([]byte(text), &c)
 		if err != nil {
 			return err
 		}
-		err = yaml.Unmarshal(yamlData, &c)
-		if err != nil {
-			return err
-		}
+	default:
+		return errors.New("unsupported filetype provided")
 	}
+
+	fmt.Printf("Found %d processes in %s\n", len(c.Processes), path)
+	for i := range c.Processes {
+		fmt.Printf("%#v\n", c.Processes[i].Name)
+		c.Processes[i].SeperateNewLines = c.SeperateNewLines
+		c.Processes[i].ShowTimestamp = c.ShowTimestamp
+	}
+	c.filePresent = true
 
 	return nil
 }

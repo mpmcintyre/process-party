@@ -34,22 +34,16 @@ to quickly create a Cobra application.`,
 		}
 
 		config := runner.CreateConfig()
-		execPrefix := ""
 
 		if len(args) != 0 {
 			err := config.ParseFile(args[0])
 			if err != nil {
 				return err
 			}
-			execPrefix = "-e"
 		}
 
 		for _, cmd := range execCommands {
-			p := runner.Process{
-				Command: cmd,
-				Prefix:  execPrefix,
-			}
-			config.Processes = append(config.Processes, p)
+			config.ParseInlineCmd(cmd)
 		}
 
 		var wg sync.WaitGroup
@@ -114,11 +108,17 @@ to quickly create a Cobra application.`,
 
 		go func() {
 			reader := bufio.NewReader(os.Stdin)
-
+			fmt.Println("Input is active - std in to commands using [all] or specific command using [<cmd prefix>]")
+			fmt.Println("Get the status using \"status\", or quit the party using \"quit\" or ctrl+c")
 			for {
-				fmt.Print("Enter text: ")
+				fmt.Println("Input: ")
 				text, _ := reader.ReadString('\n')
 				s := strings.Split(text, "]")
+				// If there are multiple "] " values, re-add them into the provided text past the first entry
+				if len(s) > 1 {
+					text = strings.Join(s[:1], "]")
+				}
+				// If the target is provided as [all]test test we need the "all" value, however we can provide "status" or "quit" as is
 				target := strings.Replace(s[0], "[", "", -1)
 				switch strings.ToLower(target) {
 				case "all":
@@ -127,8 +127,8 @@ to quickly create a Cobra application.`,
 					// Print status of every command
 				case "exit":
 					// Exit all commands
-				default:
-					// Search for individual process still running
+					// default:
+					// 	// Search for individual process still running
 				}
 				if runningProcessCount > 0 {
 					fmt.Println(text)

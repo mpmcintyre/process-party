@@ -43,7 +43,6 @@ func CreateContext(p Process, wg *sync.WaitGroup, mc MainChannelsOut, tc TaskCha
 func (c *Context) Run() {
 	// c.wg.Add(1)
 
-	log.Printf("Starting command %s", c.Process.Name)
 	cmd := exec.Command(c.Process.Command, c.Process.Args...)
 	cmd.Env = os.Environ() // Set the full environment, including PATH
 

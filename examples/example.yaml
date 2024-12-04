@@ -1,0 +1,25 @@
+processes:
+  - name: "short_sleep"
+    command: "sleep"
+    args: ["2"]
+    prefix: "Quick Process"
+    color: "green"
+    on_failure: "buzzkill"
+
+  - name: "medium_sleep"
+    command: "sleep"
+    args: ["5"]
+    prefix: "Medium Process"
+    color: "yellow"
+    on_complete: "wait"
+
+  - name: "long_sleep"
+    command: "sleep"
+    args: ["10"]
+    prefix: "Long Process"
+    color: "red"
+    on_failure: "buzzkill"
+    on_complete: "wait"
+
+indicate_every_line: true
+show_timestamp: true
