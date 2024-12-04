@@ -111,7 +111,6 @@ to quickly create a Cobra application.`,
 			fmt.Println("Input is active - std in to commands using [all] or specific command using [<cmd prefix>]")
 			fmt.Println("Get the status using \"status\", or quit the party using \"quit\" or ctrl+c")
 			for {
-				fmt.Println("Input: ")
 				text, _ := reader.ReadString('\n')
 				s := strings.Split(text, "]")
 				// If there are multiple "] " values, re-add them into the provided text past the first entry
@@ -126,9 +125,10 @@ to quickly create a Cobra application.`,
 				case "status":
 					// Print status of every command
 				case "exit":
-					// Exit all commands
-					// default:
-					// 	// Search for individual process still running
+					fmt.Println("Exiting all")
+					for _, x := range mainChannels {
+						x.Buzzkill <- true
+					}
 				}
 				if runningProcessCount > 0 {
 					fmt.Println(text)
