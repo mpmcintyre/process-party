@@ -19,15 +19,17 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "process-party",
-	Short: "A brief description of your application",
+	Use:   "process-party ./path/to/config.yml -e \"tailwindcss ...\" -e \"go run main.go\"",
+	Short: "Run multiple processes concurrently with input and grouping",
 	Args:  cobra.MaximumNArgs(1),
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Long: `Start a process, or start a party
+Run multiple processes concurrently with the same configuration on any system. 
+Simple usage, high flexibility, robust use cases. The input allows
+you to view the status of all commands with the "status" command, pipe input to 
+a specific command using <command name|command prefix>:<input> e.g. "cmd:echo hello",
+or pipe input to all commands using "all:<input>". Gracefully shutdown all processes 
+using ctrl+c or input "exit" into the command line.
+	`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -35,8 +37,10 @@ to quickly create a Cobra application.`,
 			return errors.New("please provide either a directory or execution commands to run in parallel")
 		}
 
+		// Create the configuration to store settings and process configurations
 		config := runner.CreateConfig()
 
+		// Parse the input file if the user passes in an argument
 		if len(args) != 0 {
 			err := config.ParseFile(args[0])
 			if err != nil {
@@ -44,16 +48,19 @@ to quickly create a Cobra application.`,
 			}
 		}
 
+		// Parse the inline commands (--e flag)
 		for _, cmd := range execCommands {
 			config.ParseInlineCmd(cmd)
 		}
 
+		// Create wait group for each spawned process
 		var wg sync.WaitGroup
 		wg.Add(len(config.Processes))
 
+		// Create context and channel groups
 		contexts := []runner.Context{}
-
 		mainChannels := []runner.MainChannelsOut{}
+		// Keep track of number of running procesess to exit main app
 		runningProcessCount := len(config.Processes)
 
 		for index, process := range config.Processes {
@@ -203,5 +210,5 @@ func Execute() {
 var execCommands []string
 
 func init() {
-	rootCmd.Flags().StringSliceVar(&execCommands, "e", execCommands, "Execute command (can be used multiple times)")
+	rootCmd.Flags().StringSliceVarP(&execCommands, "execute", "e", execCommands, "Execute command (can be used multiple times)")
 }

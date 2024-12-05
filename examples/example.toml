@@ -16,6 +16,7 @@ on_complete = "wait"
 [[processes]]
 name = "example fail"
 command = "go"
+show_pid = false
 args = ["run", "main.go"]
 prefix = "BACK"
 color = "blue"

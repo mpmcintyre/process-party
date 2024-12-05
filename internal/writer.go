@@ -13,6 +13,7 @@ type customWriter struct {
 	w        io.Writer
 	severity string
 	process  *Process
+	prefix   string
 }
 
 func emptyMessage(s string) bool {
@@ -25,9 +26,21 @@ func emptyMessage(s string) bool {
 	return x == ""
 }
 
+func (c *customWriter) createPrefix() {
+	c.prefix = "[" + c.process.Prefix
+	if c.process.DisplayPid {
+		c.prefix = c.prefix + "-" + c.process.Pid
+
+	}
+	c.prefix = c.prefix + "]"
+}
+
 func (e customWriter) Write(p []byte) (int, error) {
 
-	prefix := "[" + e.process.Prefix + "]"
+	if e.prefix == "" {
+		e.createPrefix()
+	}
+
 	message := string(p)
 	now := time.Now()
 
@@ -50,14 +63,14 @@ func (e customWriter) Write(p []byte) (int, error) {
 				continue
 			}
 			colourFunc := e.process.GetFgColour()
-			prefix = colourFunc(prefix)
+			e.prefix = colourFunc(e.prefix)
 			if e.severity == "error" {
 				message = color.RedString(message)
 			}
 			if e.process.ShowTimestamp {
 				message = timeString + "	" + message
 			}
-			n, err := e.w.Write([]byte(prefix + "	" + message + "\n"))
+			n, err := e.w.Write([]byte(e.prefix + " " + message + "\n"))
 			if err != nil {
 				return n, err
 			}
@@ -65,14 +78,14 @@ func (e customWriter) Write(p []byte) (int, error) {
 		}
 	} else {
 		colourFunc := e.process.GetFgColour()
-		prefix = colourFunc(prefix)
+		e.prefix = colourFunc(e.prefix)
 		if e.severity == "error" {
 			message = color.RedString(message)
 		}
 		if e.process.ShowTimestamp {
 			message = timeString + "	" + message
 		}
-		n, err := e.w.Write([]byte(prefix + " " + message + "\n"))
+		n, err := e.w.Write([]byte(e.prefix + " " + message + "\n"))
 		if err != nil {
 			return n, err
 		}

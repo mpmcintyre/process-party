@@ -25,9 +25,14 @@ type (
 		Color            ColourCode  `toml:"color" json:"color" yaml:"color"`
 		OnFailure        ExitCommand `toml:"on_failure" json:"on_failure" yaml:"on_failure"`
 		OnComplete       ExitCommand `toml:"on_complete,omitempty" json:"on_complete,omitempty" yaml:"on_complete,omitempty"`
-		SeperateNewLines bool        `json:"seperate_new_lines" yaml:"seperate_new_lines"`
+		SeperateNewLines bool        `toml:"seperate_new_lines" json:"seperate_new_lines" yaml:"seperate_new_lines"`
+		DisplayPid       bool        `toml:"show_pid" json:"show_pid" yaml:"show_pid"`
+		Delay            int         `toml:"delay" json:"delay" yaml:"delay"`
+		TimeoutOnExit    int         `toml:"timeout_on_exit" json:"timeout_on_exit" yaml:"timeout_on_exit"`
+		RestartDelay     int         `toml:"restart_delay" json:"restart_delay" yaml:"restart_delay"`
 		ShowTimestamp    bool
 		Status           ExitStatus
+		Pid              string
 	}
 	Config struct {
 		Processes        []Process `toml:"processes" json:"processes" yaml:"processes"`
@@ -47,6 +52,7 @@ const (
 	ExitStatusRunning ExitStatus = iota
 	ExitStatusExited
 	ExitStatusFailed
+	ExitStatusRestarting
 )
 
 const (
