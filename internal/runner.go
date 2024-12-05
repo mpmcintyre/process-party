@@ -76,6 +76,7 @@ cmdLoop:
 		case value := <-c.MainChannelsOut.StdIn:
 			w.Write([]byte(value + "\n"))
 		case <-c.MainChannelsOut.Buzzkill:
+			c.Process.Status = ExitStatusExited
 			infoWriter.Write([]byte("Recieved buzzkill command"))
 			startTime := time.Now()
 			timeout := 3 * time.Second
@@ -89,11 +90,11 @@ cmdLoop:
 				if cmd.Process != nil {
 					break
 				}
-
 			}
 			if !timedOut {
 				cmd.Process.Signal(os.Kill)
 			}
+
 			break cmdLoop
 
 		default:
@@ -127,6 +128,8 @@ cmdLoop:
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
+	r.Close()
+	w.Close()
 	cmd.Wait()
 	infoWriter.Write([]byte("~Exiting context~"))
 	c.wg.Done()

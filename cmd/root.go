@@ -112,6 +112,7 @@ to quickly create a Cobra application.`,
 			reader := bufio.NewReader(os.Stdin)
 			fmt.Println("Input is active - std in to commands using [all] or specific command using [<cmd prefix>]")
 			fmt.Println("Get the status using \"status\", or quit the party using \"quit\" or ctrl+c")
+		input_loop:
 			for {
 				text, _ := reader.ReadString('\n')
 				text = strings.TrimSpace(text) // Remove leading/trailing whitespace including newlines
@@ -159,6 +160,8 @@ to quickly create a Cobra application.`,
 							context.MainChannelsOut.Buzzkill <- true
 						}
 					}
+
+					break input_loop
 
 				default:
 					if len(s) < 2 {
