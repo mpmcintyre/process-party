@@ -106,7 +106,6 @@ cmdLoop:
 					infoWriter.Write([]byte("Gracefull shutdown timed out"))
 					if cmd.Process != nil {
 						cmd.Process.Kill()
-
 					}
 					break
 				}
