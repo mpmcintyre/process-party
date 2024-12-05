@@ -57,7 +57,7 @@ func (e customWriter) Write(p []byte) (int, error) {
 			if e.process.ShowTimestamp {
 				message = timeString + "	" + message
 			}
-			n, err := e.w.Write([]byte(prefix + " " + message + "\n"))
+			n, err := e.w.Write([]byte(prefix + "	" + message + "\n"))
 			if err != nil {
 				return n, err
 			}
