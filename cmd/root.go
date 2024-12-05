@@ -11,7 +11,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/fatih/color"
 	runner "github.com/mpmcintyre/process-party/internal"
+	"github.com/rodaine/table"
 	"github.com/spf13/cobra"
 )
 
@@ -71,7 +73,7 @@ to quickly create a Cobra application.`,
 
 			// Create context
 			contexts = append(contexts, runner.CreateContext(
-				process,
+				&process,
 				&wg,
 				mainChannels[index],
 				taskChannel,
@@ -112,26 +114,72 @@ to quickly create a Cobra application.`,
 			fmt.Println("Get the status using \"status\", or quit the party using \"quit\" or ctrl+c")
 			for {
 				text, _ := reader.ReadString('\n')
-				s := strings.Split(text, "]")
-				// If there are multiple "] " values, re-add them into the provided text past the first entry
-				if len(s) > 1 {
-					text = strings.Join(s[:1], "]")
+				text = strings.TrimSpace(text) // Remove leading/trailing whitespace including newlines
+				s := strings.Split(text, ":")  // Split by ":"
+				if len(s) < 1 {
+					continue
 				}
-				// If the target is provided as [all]test test we need the "all" value, however we can provide "status" or "quit" as is
-				target := strings.Replace(s[0], "[", "", -1)
-				switch strings.ToLower(target) {
+				target := ""
+				if len(s) == 1 {
+					target = text
+				} else {
+					target = s[0]
+				}
+				switch target {
 				case "all":
+					if len(s) < 2 {
+						fmt.Println("No input provided")
+						continue
+					}
+					input := s[1:]
+					for _, context := range contexts {
+						if context.Process.Status == runner.ExitStatusRunning {
+							context.MainChannelsOut.StdIn <- strings.Join(input, "")
+						}
+					}
+
 					// Broadcast to all processes
 				case "status":
+					fmt.Println()
 					// Print status of every command
+					headerFmt := color.New(color.FgGreen, color.Underline).SprintfFunc()
+					columnFmt := color.New(color.FgYellow).SprintfFunc()
+					tbl := table.New("Index", "Name", "Prefix", "Command", "Status")
+					tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
+					for index, context := range contexts {
+						tbl.AddRow(index, context.Process.Name, context.Process.Prefix, context.Process.Command, context.GetStatusAsStr())
+					}
+					tbl.Print()
+					fmt.Println()
 				case "exit":
 					fmt.Println("Exiting all")
-					for _, x := range mainChannels {
-						x.Buzzkill <- true
+
+					for _, context := range contexts {
+						if context.Process.Status == runner.ExitStatusRunning {
+							context.MainChannelsOut.Buzzkill <- true
+						}
 					}
-				}
-				if runningProcessCount > 0 {
-					fmt.Println(text)
+
+				default:
+					if len(s) < 2 {
+						fmt.Println("No input provided")
+						continue
+					}
+					found := false
+					input := s[1:]
+					for _, context := range contexts {
+						if context.Process.Name == target || context.Process.Prefix == target {
+							found = true
+							if context.Process.Status == runner.ExitStatusRunning {
+								context.MainChannelsOut.StdIn <- strings.Join(input, "")
+							} else {
+								fmt.Printf("The %s command has exited, cannot write to process\n", target)
+							}
+						}
+					}
+					if !found {
+						fmt.Printf("%s not found", target)
+					}
 				}
 			}
 		}()

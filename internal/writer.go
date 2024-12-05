@@ -12,7 +12,7 @@ import (
 type customWriter struct {
 	w        io.Writer
 	severity string
-	process  Process
+	process  *Process
 }
 
 func emptyMessage(s string) bool {

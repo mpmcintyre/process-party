@@ -4,7 +4,7 @@ package runner
 import (
 	"errors"
 	"fmt"
-	"log"
+	"io"
 	"os"
 	"os/exec"
 	"sync"
@@ -24,14 +24,14 @@ type MainChannelsOut struct {
 }
 
 type Context struct {
-	Process         Process
+	Process         *Process
 	MainChannelsOut MainChannelsOut
 	TaskChannelsOut TaskChannelsOut
 	wg              *sync.WaitGroup
 	// outb, errb   bytes.Buffer
 }
 
-func CreateContext(p Process, wg *sync.WaitGroup, mc MainChannelsOut, tc TaskChannelsOut) Context {
+func CreateContext(p *Process, wg *sync.WaitGroup, mc MainChannelsOut, tc TaskChannelsOut) Context {
 	return Context{
 		Process:         p,
 		wg:              wg,
@@ -40,22 +40,31 @@ func CreateContext(p Process, wg *sync.WaitGroup, mc MainChannelsOut, tc TaskCha
 	}
 }
 
+func (c *Context) GetStatusAsStr() string {
+	switch c.Process.Status {
+	case ExitStatusRunning:
+		return "Running"
+	case ExitStatusExited:
+		return "Exited"
+	case ExitStatusFailed:
+		return "Failed"
+	}
+	return "Unknown"
+}
+
 func (c *Context) Run() {
 	// c.wg.Add(1)
 
 	cmd := exec.Command(c.Process.Command, c.Process.Args...)
 	cmd.Env = os.Environ() // Set the full environment, including PATH
-
-	cmdIn, err := cmd.StdinPipe()
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	r, w := io.Pipe()
 	infoWriter := &customWriter{w: os.Stdout, severity: "info", process: c.Process}
 	errorWriter := &customWriter{w: os.Stdout, severity: "error", process: c.Process}
 	cmd.Stdout = infoWriter
 	cmd.Stderr = errorWriter
+	cmd.Stdin = r
 	displayedPid := false
+	c.Process.Status = ExitStatusRunning
 	startErr := cmd.Start()
 	// Go wait somewhere else lamo (*insert you cant sit with us meme*)
 	go cmd.Wait()
@@ -65,7 +74,7 @@ cmdLoop:
 
 		select {
 		case value := <-c.MainChannelsOut.StdIn:
-			cmdIn.Write([]byte(value))
+			w.Write([]byte(value + "\n"))
 		case <-c.MainChannelsOut.Buzzkill:
 			infoWriter.Write([]byte("Recieved buzzkill command"))
 			startTime := time.Now()
@@ -115,7 +124,7 @@ cmdLoop:
 				}
 				c.Process.Status = ExitStatusRunning
 			}
-
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 	cmd.Wait()

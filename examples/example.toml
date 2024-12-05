@@ -4,7 +4,7 @@ show_timestamp = true
 indicate_every_line=true
 
 [[processes]]
-name = "echo"
+name = "cmd"
 command = "cmd"
 prefix = "FRONT"
 color = "green"
@@ -13,13 +13,13 @@ on_complete = "wait"
 
 
 
-# [[processes]]
-# name = "example fail"
-# command = "go"
-# args = ["run", "main.go"]
-# prefix = "BACK"
-# color = "blue"
-# on_failure = "buzzkill"
+[[processes]]
+name = "example fail"
+command = "go"
+args = ["run", "main.go"]
+prefix = "BACK"
+color = "blue"
+on_failure = "wait"
 
 # [[processes]]
 # name = "example fail2"
