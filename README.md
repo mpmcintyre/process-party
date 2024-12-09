@@ -16,7 +16,7 @@ Process Party is a powerful CLI tool that allows you to run and manage multiple 
 
 ```bash
 # Installation instructions (replace with actual installation method)
-go install github.com/yourusername/process-party
+go install github.com/mpmcintyre/process-party
 ```
 
 ## Usage
@@ -177,8 +177,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-[Add your license here]
+MIT
 
 ## Author
 
-[Your Name]
+Michael
