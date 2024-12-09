@@ -69,16 +69,8 @@ func (c *Context) Run() {
 	c.Process.Status = ExitStatusRunning
 
 	// Wait for the start delay
-	startTime := time.Now()
-	timeout := time.Duration(c.Process.Delay) * time.Second
 	infoWriter.Write([]byte(fmt.Sprintf("Starting process - %d second delay", c.Process.Delay)))
-	for {
-		elapsed := time.Since(startTime)
-		if elapsed > timeout {
-			break
-		}
-	}
-
+	time.Sleep(time.Duration(c.Process.Delay) * time.Second)
 	// Start the command
 	startErr := cmd.Start()
 	// Go wait somewhere else lamo (*insert you cant sit with us meme*)
@@ -112,6 +104,7 @@ cmdLoop:
 				if cmd.ProcessState != nil {
 					break
 				}
+				time.Sleep(10 * time.Millisecond)
 			}
 
 			break cmdLoop
@@ -171,15 +164,8 @@ func (c *Context) handleCloseConditions(writer customWriter, cmd *exec.Cmd, exit
 			c.Process.RestartAttempts = c.Process.RestartAttempts - 1
 		}
 		c.Process.Status = ExitStatusRestarting
-		startTime := time.Now()
-		timeout := time.Duration(c.Process.RestartDelay) * time.Second
 		writer.Write([]byte(fmt.Sprintf("Process exited - Restarting, %d second restart delay, %d attempts remaining", c.Process.RestartDelay, c.Process.RestartAttempts)))
-		for {
-			elapsed := time.Since(startTime)
-			if elapsed > timeout {
-				break
-			}
-		}
+		time.Sleep(time.Duration(c.Process.RestartDelay) * time.Second)
 		err := cmd.Start()
 		return err
 	}
