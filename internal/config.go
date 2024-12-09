@@ -30,6 +30,7 @@ type (
 		Delay            int         `toml:"delay" json:"delay" yaml:"delay"`
 		TimeoutOnExit    int         `toml:"timeout_on_exit" json:"timeout_on_exit" yaml:"timeout_on_exit"`
 		RestartDelay     int         `toml:"restart_delay" json:"restart_delay" yaml:"restart_delay"`
+		RestartAttempts  int         `toml:"restart_attempts" json:"restart_attempts" yaml:"restart_attempts"`
 		ShowTimestamp    bool
 		Status           ExitStatus
 		Pid              string

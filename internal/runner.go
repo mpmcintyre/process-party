@@ -163,10 +163,17 @@ func (c *Context) handleCloseConditions(writer customWriter, cmd *exec.Cmd, exit
 		return errors.New("exit code 1")
 	}
 	if exitHandler == ExitCommandRestart {
+		if c.Process.RestartAttempts == 0 {
+			return errors.New("exit code 1")
+		}
+		// Remove one attempt (negative numbers imply to always restart)
+		if c.Process.RestartAttempts > 0 {
+			c.Process.RestartAttempts = c.Process.RestartAttempts - 1
+		}
 		c.Process.Status = ExitStatusRestarting
 		startTime := time.Now()
 		timeout := time.Duration(c.Process.RestartDelay) * time.Second
-		writer.Write([]byte(fmt.Sprintf("Process exited - Restarting, %d second restart delay", c.Process.RestartDelay)))
+		writer.Write([]byte(fmt.Sprintf("Process exited - Restarting, %d second restart delay, %d attempts remaining", c.Process.RestartDelay, c.Process.RestartAttempts)))
 		for {
 			elapsed := time.Since(startTime)
 			if elapsed > timeout {
@@ -176,5 +183,10 @@ func (c *Context) handleCloseConditions(writer customWriter, cmd *exec.Cmd, exit
 		err := cmd.Start()
 		return err
 	}
-	return errors.New("exit code 1")
+	if exitHandler == ExitCommandWait {
+		writer.Write([]byte("Process exited - Buzzkilling"))
+		c.TaskChannelsOut.Buzzkill <- true
+		return errors.New("waiting for other processes - exit code 1")
+	}
+	return errors.New("unknown exit condition - exit status 1")
 }

@@ -18,23 +18,25 @@ var tpExit runner.ExitCommand = "wait"
 var tpColour runner.ColourCode = "green"
 var tpDelays int = 1
 var tpPID string = "123"
+var tpRestartEvents int = 1
 
 // Creates a process with non-default values
 func createProcess(increment int, nameStamp string) runner.Process {
 	return runner.Process{
-		Name:          nameStamp + fmt.Sprintf("%d", increment),
-		Command:       nameStamp + fmt.Sprintf("%d", increment),
-		Args:          []string{nameStamp + fmt.Sprintf("%d", increment)},
-		Prefix:        nameStamp + fmt.Sprintf("%d", increment),
-		Color:         tpColour,
-		OnFailure:     tpExit,
-		OnComplete:    tpExit,
-		DisplayPid:    true,
-		Delay:         tpDelays,
-		TimeoutOnExit: tpDelays,
-		RestartDelay:  tpDelays,
-		Status:        runner.ExitStatusRunning,
-		Pid:           tpPID,
+		Name:            nameStamp + fmt.Sprintf("%d", increment),
+		Command:         nameStamp + fmt.Sprintf("%d", increment),
+		Args:            []string{nameStamp + fmt.Sprintf("%d", increment)},
+		Prefix:          nameStamp + fmt.Sprintf("%d", increment),
+		RestartAttempts: tpRestartEvents,
+		Color:           tpColour,
+		OnFailure:       tpExit,
+		OnComplete:      tpExit,
+		DisplayPid:      true,
+		Delay:           tpDelays,
+		TimeoutOnExit:   tpDelays,
+		RestartDelay:    tpDelays,
+		Status:          runner.ExitStatusRunning,
+		Pid:             tpPID,
 		// These must be set by the config file not the process
 		ShowTimestamp:    false,
 		SeperateNewLines: false,
