@@ -58,20 +58,21 @@ process-party ./path/to/config.yaml -e "npm run start" --execute "cmd echo hello
 
 ### Process Configuration Options
 
-| Option               | Type       | Description                   | Possible Values                                              |
-| -------------------- | ---------- | ----------------------------- | ------------------------------------------------------------ |
-| `name`               | `string`   | Unique name for the process   | Any string                                                   |
-| `command`            | `string`   | Command to execute            | Any valid shell command                                      |
-| `args`               | `[]string` | Arguments for the command     | List of strings                                              |
-| `prefix`             | `string`   | Prefix for output lines       | Any string                                                   |
-| `color`              | `string`   | Output color for the process  | `yellow`, `blue`, `green`, `red`, `cyan`, `white`, `magenta` |
-| `on_failure`         | `string`   | Action on process failure     | `buzzkill`, `wait`, `restart`                                |
-| `on_complete`        | `string`   | Action on process completion  | `buzzkill`, `wait`, `restart`                                |
-| `seperate_new_lines` | `bool`     | Separate output for each line | `true`/`false`                                               |
-| `show_pid`           | `bool`     | Display process ID            | `true`/`false`                                               |
-| `delay`              | `int`      | Initial delay before starting | Seconds                                                      |
-| `timeout_on_exit`    | `int`      | Timeout when exiting          | Seconds                                                      |
-| `restart_delay`      | `int`      | Delay before restarting       | Seconds                                                      |
+| Option               | Type       | Description                               | Possible Values                                              |
+| -------------------- | ---------- | ----------------------------------------- | ------------------------------------------------------------ |
+| `name`               | `string`   | Unique name for the process               | Any string                                                   |
+| `command`            | `string`   | Command to execute                        | Any valid shell command                                      |
+| `args`               | `[]string` | Arguments for the command                 | List of strings                                              |
+| `prefix`             | `string`   | Prefix for output lines                   | Any string                                                   |
+| `color`              | `string`   | Output color for the process              | `yellow`, `blue`, `green`, `red`, `cyan`, `white`, `magenta` |
+| `on_failure`         | `string`   | Action on process failure                 | `buzzkill`, `wait`, `restart`                                |
+| `on_complete`        | `string`   | Action on process completion              | `buzzkill`, `wait`, `restart`                                |
+| `seperate_new_lines` | `bool`     | Separate output for each line             | `true`/`false`                                               |
+| `show_pid`           | `bool`     | Display process ID                        | `true`/`false`                                               |
+| `delay`              | `int`      | Initial delay before starting             | Seconds                                                      |
+| `timeout_on_exit`    | `int`      | Timeout when exiting                      | Seconds                                                      |
+| `restart_delay`      | `int`      | Delay before restarting                   | Seconds                                                      |
+| `restart_attempts`   | `int`      | Number of restart attempts before exiting | Integer (negative implies always restart)                    |
 
 ## Example Configurations
 
