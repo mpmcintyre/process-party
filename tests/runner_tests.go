@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
 	runner "github.com/mpmcintyre/process-party/internal"
@@ -87,13 +88,34 @@ func createBuzzkillProcess(command string, args []string) runner.Process {
 
 func TestRunner(t *testing.T) {
 
+	var wg sync.WaitGroup
 	// config := runner.CreateConfig()
 
-	// // Test that each one works by creating a file with the name of the process
-	// buzkillProcess := createBuzzkillProcess("cmd", []string{"echo", ">>", "buzzkill"})
+	// Test that each one works by creating a file with the name of the process
+	buzkillProcess := createBuzzkillProcess("echo", []string{"buzkill", ">>", "buzzkill"})
 
-	// // command := "cmd"
-	// args := []
-	// config.Processes := append(config.Processes)
+	wg.Add(1)
+
+	// Create the task output channels
+	taskChannel := runner.TaskChannelsOut{
+		Buzzkill:     make(chan bool),
+		EndOfCommand: make(chan string),
+	}
+
+	mainChannel := runner.MainChannelsOut{
+		Buzzkill: make(chan bool),
+		StdIn:    make(chan string),
+	}
+
+	context := runner.CreateContext(
+		&buzkillProcess,
+		&wg,
+		mainChannel,
+		taskChannel,
+	)
+
+	context.Run()
+	// yada yada
+
 	fmt.Printf("Test")
 }

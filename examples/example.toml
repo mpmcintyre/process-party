@@ -10,7 +10,7 @@ prefix = "FRONT"
 color = "green"
 on_failure = "buzzkill"
 on_complete = "wait"
-stdin_on_start = "echo hello"
+stdin_on_start = "echo hello\nexit"
 
 [[processes]]
 name = "example fail"

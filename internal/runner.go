@@ -119,9 +119,10 @@ cmdLoop:
 				displayedPid = true
 			}
 			// Handle the process exiting
-			if cmd.ProcessState.ExitCode() > 0 || startErr != nil {
+			if cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
 				if cmd.ProcessState.ExitCode() == 0 {
 					c.Process.Status = ExitStatusExited
+					// fmt.Printf("%s process (%s) exited, saying irish goodbye\n", c.Process.Name, c.Process.Prefix)
 					startErr = c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
 				} else if startErr != nil {
 					errorWriter.Write([]byte(startErr.Error()))
@@ -129,7 +130,7 @@ cmdLoop:
 					startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
 				} else {
 					c.Process.Status = ExitStatusExited
-					fmt.Printf("%s process (%s) exited, saying irish goodbye\n", c.Process.Name, c.Process.Prefix)
+					// fmt.Printf("%s process (%s) exited, saying irish goodbye\n", c.Process.Name, c.Process.Prefix)
 					c.TaskChannelsOut.EndOfCommand <- c.Process.Name
 					startErr = c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
 				}
@@ -177,8 +178,8 @@ func (c *Context) handleCloseConditions(writer customWriter, cmd *exec.Cmd, exit
 		return err
 	}
 	if exitHandler == ExitCommandWait {
-		writer.Write([]byte("Process exited - Buzzkilling"))
-		c.TaskChannelsOut.Buzzkill <- true
+		writer.Write([]byte("Process exited - waiting"))
+		c.TaskChannelsOut.EndOfCommand <- c.Process.Name
 		return errors.New("waiting for other processes - exit code 1")
 	}
 	return errors.New("unknown exit condition - exit status 1")
