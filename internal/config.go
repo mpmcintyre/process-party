@@ -31,7 +31,7 @@ type (
 		TimeoutOnExit    int         `toml:"timeout_on_exit" json:"timeout_on_exit" yaml:"timeout_on_exit"`
 		RestartDelay     int         `toml:"restart_delay" json:"restart_delay" yaml:"restart_delay"`
 		RestartAttempts  int         `toml:"restart_attempts" json:"restart_attempts" yaml:"restart_attempts"`
-		StartStream      string      `toml:"input_stream_on_start" json:"input_stream_on_start" yaml:"input_stream_on_start"`
+		StartStream      string      `toml:"stdin_on_start" json:"stdin_on_start" yaml:"stdin_on_start"`
 		ShowTimestamp    bool
 		Status           ExitStatus
 		Pid              string

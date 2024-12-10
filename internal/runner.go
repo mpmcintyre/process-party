@@ -141,6 +141,11 @@ cmdLoop:
 				}
 				c.Process.Status = ExitStatusRunning
 			}
+			// Stream the initial start stream values and set it to an empty string
+			if c.Process.StartStream != "" {
+				w.Write([]byte(c.Process.StartStream + "\n"))
+				c.Process.StartStream = ""
+			}
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
