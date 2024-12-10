@@ -42,6 +42,8 @@ func CreateContext(p *Process, wg *sync.WaitGroup, mc MainChannelsOut, tc TaskCh
 
 func (c *Context) GetStatusAsStr() string {
 	switch c.Process.Status {
+	case ExitStatusNotStarted:
+		return "Not started"
 	case ExitStatusRunning:
 		return "Running"
 	case ExitStatusExited:
