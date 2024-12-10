@@ -31,6 +31,7 @@ type (
 		TimeoutOnExit    int         `toml:"timeout_on_exit" json:"timeout_on_exit" yaml:"timeout_on_exit"`
 		RestartDelay     int         `toml:"restart_delay" json:"restart_delay" yaml:"restart_delay"`
 		RestartAttempts  int         `toml:"restart_attempts" json:"restart_attempts" yaml:"restart_attempts"`
+		StartStream      string      `toml:"input_stream_on_start" json:"input_stream_on_start" yaml:"input_stream_on_start"`
 		ShowTimestamp    bool
 		Status           ExitStatus
 		Pid              string
@@ -50,7 +51,8 @@ const (
 )
 
 const (
-	ExitStatusRunning ExitStatus = iota
+	ExitStatusNotStarted ExitStatus = iota
+	ExitStatusRunning
 	ExitStatusExited
 	ExitStatusFailed
 	ExitStatusRestarting
@@ -103,13 +105,21 @@ func (c *Config) ParseInlineCmd(cmd string) error {
 	}
 	command := s[0]
 	args := []string{}
-	prefix := ""
+	prefix := command
 	if len(s) > 1 {
 		args = s[:1]
 	}
 
-	if c.filePresent {
-		prefix = fmt.Sprintf("cmd%d", len(c.Processes)+1)
+	// Count how many processes have the same name and increment it for the prefix
+	count := 0
+	for _, process := range c.Processes {
+		if strings.Contains(process.Command, command) {
+			count++
+		}
+	}
+
+	if count != 0 {
+		prefix = fmt.Sprintf("cmd%d", count)
 	}
 
 	p := Process{

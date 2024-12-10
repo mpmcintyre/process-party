@@ -48,7 +48,7 @@ using ctrl+c or input "exit" into the command line.
 			}
 		}
 
-		// Parse the inline commands (--e flag)
+		// Parse the inline commands (-e or --execute flag)
 		for _, cmd := range execCommands {
 			config.ParseInlineCmd(cmd)
 		}

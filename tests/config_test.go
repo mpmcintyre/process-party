@@ -18,7 +18,8 @@ var tpExit runner.ExitCommand = "wait"
 var tpColour runner.ColourCode = "green"
 var tpDelays int = 1
 var tpPID string = "123"
-var tpRestartEvents int = 1
+var tpRestartAttempts int = 1
+var startStream string = "start"
 
 // Creates a process with non-default values
 func createProcess(increment int, nameStamp string) runner.Process {
@@ -27,7 +28,7 @@ func createProcess(increment int, nameStamp string) runner.Process {
 		Command:         nameStamp + fmt.Sprintf("%d", increment),
 		Args:            []string{nameStamp + fmt.Sprintf("%d", increment)},
 		Prefix:          nameStamp + fmt.Sprintf("%d", increment),
-		RestartAttempts: tpRestartEvents,
+		RestartAttempts: tpRestartAttempts,
 		Color:           tpColour,
 		OnFailure:       tpExit,
 		OnComplete:      tpExit,
@@ -35,6 +36,7 @@ func createProcess(increment int, nameStamp string) runner.Process {
 		Delay:           tpDelays,
 		TimeoutOnExit:   tpDelays,
 		RestartDelay:    tpDelays,
+		StartStream:     startStream,
 		Status:          runner.ExitStatusRunning,
 		Pid:             tpPID,
 		// These must be set by the config file not the process
@@ -44,56 +46,62 @@ func createProcess(increment int, nameStamp string) runner.Process {
 }
 
 // Returns true if a default value is found
-func testForDefaultProcessValues(process runner.Process) bool {
+func containsDefaultValues(process runner.Process) bool {
 	dp := runner.Process{}
 	if process.Name == dp.Name {
-		return false
+		return true
 	}
 	if process.Command == dp.Command {
-		return false
+		return true
 	}
 	if reflect.DeepEqual(process.Args, dp.Args) {
-		return false
+		return true
 	}
 	if process.Prefix == dp.Prefix {
-		return false
+		return true
+	}
+	if process.RestartAttempts == dp.RestartAttempts {
+		return true
 	}
 	if process.Color == dp.Color {
-		return false
+		return true
 	}
 	if process.OnFailure == dp.OnFailure {
-		return false
+		return true
 	}
 	if process.OnComplete == dp.OnComplete {
-		return false
+		return true
 	}
 	if process.DisplayPid == dp.DisplayPid {
-		return false
+		return true
 	}
 	if process.Delay == dp.Delay {
-		return false
+		return true
 	}
 	if process.TimeoutOnExit == dp.TimeoutOnExit {
-		return false
+		return true
 	}
 	if process.RestartDelay == dp.RestartDelay {
-		return false
+		return true
+	}
+	if process.StartStream == dp.StartStream {
+		return true
 	}
 	if process.Status == dp.Status {
-		return false
+		return true
 	}
 	if process.Pid == dp.Pid {
-		return false
+		return true
 	}
 	// These must be set by the config file not the process
 	if process.ShowTimestamp == dp.ShowTimestamp {
-		return false
+		return true
 	}
 	if process.SeperateNewLines == dp.SeperateNewLines {
-		return false
+		return true
 	}
 
-	return true
+	return false
 }
 
 // exists returns whether the given file or directory exists
@@ -121,7 +129,7 @@ func writeFile(data []byte, dir string, filename string) error {
 func createNonDefaultConfig(numberOfProcesses int, nameStamp string, tempDir string, testName string) error {
 
 	if !dirExists(tempDir) {
-		os.Mkdir(tempDir, fs.ModeDir)
+		os.MkdirAll(tempDir, fs.ModeDir)
 	}
 
 	defaultProcess := runner.Process{}
@@ -185,7 +193,7 @@ func createNonDefaultConfig(numberOfProcesses int, nameStamp string, tempDir str
 // - Make sure that all settings are non-default
 func TestConfigParsing(t *testing.T) {
 	t.Log("Testing config parsing")
-	tempDir := "./.tmp/"
+	tempDir := "./.tmp/config/"
 	testName := "test"
 	numberOfTestProcesses := 50
 	err := createNonDefaultConfig(numberOfTestProcesses, "tmp", tempDir, testName)
@@ -209,16 +217,16 @@ func TestConfigParsing(t *testing.T) {
 	}
 
 	for index := range numberOfTestProcesses {
-		if testForDefaultProcessValues(jsonConfig.Processes[index]) {
+		if containsDefaultValues(jsonConfig.Processes[index]) {
 			t.Fatalf("process config contains default value")
 		}
-		if testForDefaultProcessValues(ymlConfig.Processes[index]) {
+		if containsDefaultValues(ymlConfig.Processes[index]) {
 			t.Fatalf("process config contains default value")
 		}
-		if testForDefaultProcessValues(yamlConfig.Processes[index]) {
+		if containsDefaultValues(yamlConfig.Processes[index]) {
 			t.Fatalf("process config contains default value")
 		}
-		if testForDefaultProcessValues(tomlConfig.Processes[index]) {
+		if containsDefaultValues(tomlConfig.Processes[index]) {
 			t.Fatalf("process config contains default value")
 		}
 	}
@@ -230,7 +238,7 @@ func TestConfigParsing(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 		for _, file := range files {
-			err := os.Remove("./.tmp/" + file.Name())
+			err := os.Remove(tempDir + file.Name())
 			if err != nil {
 				t.Fatal(err.Error())
 			}
