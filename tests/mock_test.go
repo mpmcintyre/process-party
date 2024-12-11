@@ -2,25 +2,13 @@ package tests
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"testing"
 	"time"
+
+	testHelpers "github.com/mpmcintyre/process-party/test_helpers"
 )
-
-// Exported functions
-func CreateSleepTask(sleepDurationSeconds int) *exec.Cmd {
-	return exec.Command("go", "run", "./mocks/fake_process.go", "sleep", fmt.Sprintf("%d", sleepDurationSeconds))
-}
-
-func CreateTouchTask(filename string) *exec.Cmd {
-	return exec.Command("go", "run", "./mocks/fake_process.go", "touch", filename)
-}
-
-func CreateMkdirTask(dirname string) *exec.Cmd {
-	return exec.Command("go", "run", "./mocks/fake_process.go", "mkdir", dirname)
-}
 
 func DirectoryExists(dirname string, pathToDir string) (bool, error) {
 	dirs, err := os.ReadDir(pathToDir)
@@ -65,7 +53,8 @@ func TestTouch(t *testing.T) {
 		os.RemoveAll(filename)
 	}
 
-	cmd := CreateTouchTask(filename)
+	cmdSettings := testHelpers.CreateTouchCmdSettings(filename)
+	cmd := exec.Command(cmdSettings.Cmd, cmdSettings.Args...)
 	x, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +83,8 @@ func TestMkdir(t *testing.T) {
 		os.RemoveAll(dirName)
 	}
 
-	cmd := CreateMkdirTask(dirName)
+	cmdSettings := testHelpers.CreateMkdirCmdSettings(dirName)
+	cmd := exec.Command(cmdSettings.Cmd, cmdSettings.Args...)
 	x, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
@@ -113,8 +103,10 @@ func TestMkdir(t *testing.T) {
 
 func TestSleep(t *testing.T) {
 	sleepTime := 1
-	cmd := CreateSleepTask(sleepTime)
+	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepTime)
+	cmd := exec.Command(cmdSettings.Cmd, cmdSettings.Args...)
 	t1 := time.Now()
+
 	x, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)

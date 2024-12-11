@@ -20,6 +20,7 @@ args = ["run", "main.go"]
 prefix = "BACK"
 color = "blue"
 on_failure = "wait"
+silent = true
 
 # [[processes]]
 # name = "example fail2"

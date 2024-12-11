@@ -36,7 +36,7 @@ using ctrl+c or input "exit" into the command line.
 		if len(args) == 0 && len(execCommands) == 0 {
 			return errors.New("please provide either a directory or execution commands to run in parallel")
 		}
-
+		fmt.Println("-------------------- Process Party --------------------")
 		// Create the configuration to store settings and process configurations
 		config := runner.CreateConfig()
 
@@ -119,6 +119,8 @@ using ctrl+c or input "exit" into the command line.
 			reader := bufio.NewReader(os.Stdin)
 			fmt.Println("Input is active - std in to commands using [all] or specific command using [<cmd prefix>]")
 			fmt.Println("Get the status using \"status\", or quit the party using \"quit\" or ctrl+c")
+			fmt.Println("-------------------------------------------------------")
+
 		input_loop:
 			for {
 				text, _ := reader.ReadString('\n')

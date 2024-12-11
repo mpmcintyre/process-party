@@ -14,4 +14,7 @@ run-yml:
 	go run . ./examples/example.yml
 
 tests:
+	go test -cpuprofile cpu.prof -memprofile mem.prof -bench . ./tests
+
+tests-verbose:
 	go test -cpuprofile cpu.prof -memprofile mem.prof -bench . ./tests -v

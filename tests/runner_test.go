@@ -1,11 +1,12 @@
 package tests
 
 import (
-	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	runner "github.com/mpmcintyre/process-party/internal"
+	testHelpers "github.com/mpmcintyre/process-party/test_helpers"
 )
 
 // Creates a process with non-default values and waiting values
@@ -86,13 +87,18 @@ func createBuzzkillProcess(command string, args []string) runner.Process {
 	}
 }
 
-func TestRunner(t *testing.T) {
-
+func TestExternalBuzzkill(t *testing.T) {
 	var wg sync.WaitGroup
-	// config := runner.CreateConfig()
 
 	// Test that each one works by creating a file with the name of the process
-	buzkillProcess := createBuzzkillProcess("echo", []string{"buzkill", ">>", "buzzkill"})
+	sleepDuration := 5 // Seconds
+	delay := 100       //ms
+
+	if delay/1000 > sleepDuration/2 {
+		t.Fatalf("delay duration cannot be larger than sleepDuration/2, delay=%d ms, sleep=%d s", delay, sleepDuration)
+	}
+	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
+	buzkillProcess := createBuzzkillProcess(cmdSettings.Cmd, cmdSettings.Args)
 
 	wg.Add(1)
 
@@ -113,9 +119,23 @@ func TestRunner(t *testing.T) {
 		mainChannel,
 		taskChannel,
 	)
+	go context.Run()
+	time.Sleep(time.Duration(delay) * time.Millisecond)
+	t1 := time.Now()
+	mainChannel.Buzzkill <- true
+	wg.Wait()
+	if time.Since(t1) < time.Duration(sleepDuration) {
+		t.Fatal("Process ran to completion. Context did not exit on buzzkill")
+	}
+	if context.Process.Status == runner.ExitStatusRunning {
+		t.Fatal("Context run status is still running. Context did not exit on buzzkill")
+	}
+}
 
-	context.Run()
-	// yada yada
+func TestWait(t *testing.T) {
 
-	fmt.Printf("Test")
+}
+
+func TestRestart(t *testing.T) {
+
 }
