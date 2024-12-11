@@ -1,4 +1,4 @@
-
+.PHONY: tests
 
 run-toml:
 	go run . ./examples/example.toml
@@ -12,3 +12,6 @@ run-yaml:
 
 run-yml:
 	go run . ./examples/example.yml
+
+tests:
+	go test -cpuprofile cpu.prof -memprofile mem.prof -bench . ./tests -v
