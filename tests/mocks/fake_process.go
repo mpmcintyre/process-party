@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -30,4 +31,6 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+
+	fmt.Printf("%s executed successfully", args[0])
 }
