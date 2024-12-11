@@ -36,6 +36,9 @@ func (c *customWriter) createPrefix() {
 }
 
 func (e customWriter) Write(p []byte) (int, error) {
+	if e.process.Silent {
+		return 0, nil
+	}
 
 	if e.prefix == "" {
 		e.createPrefix()

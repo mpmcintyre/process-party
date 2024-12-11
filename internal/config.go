@@ -32,6 +32,7 @@ type (
 		RestartDelay     int         `toml:"restart_delay" json:"restart_delay" yaml:"restart_delay"`
 		RestartAttempts  int         `toml:"restart_attempts" json:"restart_attempts" yaml:"restart_attempts"`
 		StartStream      string      `toml:"stdin_on_start" json:"stdin_on_start" yaml:"stdin_on_start"`
+		Silent           bool        `toml:"silent" json:"silent" yaml:"silent"`
 		ShowTimestamp    bool
 		Status           ExitStatus
 		Pid              string
@@ -169,12 +170,23 @@ func (c *Config) ParseFile(path string) error {
 		return errors.New("unsupported filetype provided")
 	}
 
-	fmt.Printf("Found %d processes in %s\n", len(c.Processes), path)
+	fmt.Printf("Found %d processes in %s\nProcesses:\n", len(c.Processes), path)
+	fmt.Print("[")
 	for i := range c.Processes {
-		fmt.Printf("%#v\n", c.Processes[i].Name)
+		output := fmt.Sprintf("%#v", c.Processes[i].Name)
+		if c.Processes[i].Silent {
+			output = fmt.Sprintf("%#v (silent)", c.Processes[i].Name)
+		}
+		if i == len(c.Processes)-1 {
+			fmt.Printf("%s", output)
+		} else {
+			fmt.Printf("%s, ", output)
+		}
 		c.Processes[i].SeperateNewLines = c.SeperateNewLines
 		c.Processes[i].ShowTimestamp = c.ShowTimestamp
 	}
+	fmt.Printf("]\n\n")
+
 	c.filePresent = true
 
 	return nil
