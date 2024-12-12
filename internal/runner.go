@@ -122,22 +122,22 @@ cmdLoop:
 			if cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
 				if cmd.ProcessState.ExitCode() == 0 {
 					c.Process.Status = ExitStatusExited
-					// fmt.Printf("%s process (%s) exited, saying irish goodbye\n", c.Process.Name, c.Process.Prefix)
 					startErr = c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
 				} else if startErr != nil {
+					infoWriter.Write([]byte("Failed to start"))
 					errorWriter.Write([]byte(startErr.Error()))
 					c.Process.Status = ExitStatusFailed
 					startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
 				} else {
 					c.Process.Status = ExitStatusExited
-					// fmt.Printf("%s process (%s) exited, saying irish goodbye\n", c.Process.Name, c.Process.Prefix)
+					// Note! This will block if not listened to in tests
 					c.TaskChannelsOut.EndOfCommand <- c.Process.Name
 					startErr = c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
 				}
 
 				// If the end commands are anything else we dont give a shit
 				// If the process is restarted this should be false
-				if cmd.ProcessState.ExitCode() > 0 || startErr != nil {
+				if cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
 					break cmdLoop
 				}
 				c.Process.Status = ExitStatusRunning
@@ -154,6 +154,9 @@ cmdLoop:
 	w.Close()
 	cmd.Wait()
 	infoWriter.Write([]byte("~Exiting context~"))
+
+	// The process exits so quick we need to delay to ensure that the buzkill command is sent
+	time.Sleep(time.Duration(10) * time.Millisecond)
 	c.wg.Done()
 }
 
@@ -179,6 +182,7 @@ func (c *Context) handleCloseConditions(writer customWriter, cmd *exec.Cmd, exit
 	}
 	if exitHandler == ExitCommandWait {
 		writer.Write([]byte("Process exited - waiting"))
+		// Note! This will block if not listened to in tests
 		c.TaskChannelsOut.EndOfCommand <- c.Process.Name
 		return errors.New("waiting for other processes - exit code 1")
 	}

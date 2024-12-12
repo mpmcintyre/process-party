@@ -39,6 +39,7 @@ func createProcess(increment int, nameStamp string) runner.Process {
 		StartStream:     startStream,
 		Status:          runner.ExitStatusRunning,
 		Pid:             tpPID,
+		Silent:          true,
 		// These must be set by the config file not the process
 		ShowTimestamp:    false,
 		SeperateNewLines: false,
@@ -48,59 +49,35 @@ func createProcess(increment int, nameStamp string) runner.Process {
 // Returns true if a default value is found
 func containsDefaultValues(process runner.Process) bool {
 	dp := runner.Process{}
-	if process.Name == dp.Name {
+	dpString, err := json.Marshal(dp)
+	if err != nil {
+		fmt.Println("Error marshaling JSON:", err)
 		return true
 	}
-	if process.Command == dp.Command {
+	pString, err := json.Marshal(process)
+	if err != nil {
+		fmt.Println("Error marshaling JSON:", err)
 		return true
 	}
-	if reflect.DeepEqual(process.Args, dp.Args) {
+	var resultA map[string]interface{}
+	err = json.Unmarshal([]byte(dpString), &resultA)
+	if err != nil {
+		fmt.Println("Error unmarshaling JSON:", err)
 		return true
 	}
-	if process.Prefix == dp.Prefix {
-		return true
-	}
-	if process.RestartAttempts == dp.RestartAttempts {
-		return true
-	}
-	if process.Color == dp.Color {
-		return true
-	}
-	if process.OnFailure == dp.OnFailure {
-		return true
-	}
-	if process.OnComplete == dp.OnComplete {
-		return true
-	}
-	if process.DisplayPid == dp.DisplayPid {
-		return true
-	}
-	if process.Delay == dp.Delay {
-		return true
-	}
-	if process.TimeoutOnExit == dp.TimeoutOnExit {
-		return true
-	}
-	if process.RestartDelay == dp.RestartDelay {
-		return true
-	}
-	if process.StartStream == dp.StartStream {
-		return true
-	}
-	if process.Status == dp.Status {
-		return true
-	}
-	if process.Pid == dp.Pid {
-		return true
-	}
-	// These must be set by the config file not the process
-	if process.ShowTimestamp == dp.ShowTimestamp {
-		return true
-	}
-	if process.SeperateNewLines == dp.SeperateNewLines {
+	var resultB map[string]interface{}
+	err = json.Unmarshal([]byte(pString), &resultB)
+	if err != nil {
+		fmt.Println("Error unmarshaling JSON:", err)
 		return true
 	}
 
+	for key, value := range resultA {
+		if reflect.DeepEqual(value, resultB[key]) {
+			fmt.Printf("Key %s is equal to the default value, Value: %v\n", key, value)
+			return true
+		}
+	}
 	return false
 }
 

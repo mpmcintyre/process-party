@@ -28,3 +28,10 @@ func CreateMkdirCmdSettings(dirname string) CmdSettings {
 		Args: []string{"run", "./mocks/fake_process.go", "mkdir", dirname},
 	}
 }
+
+func CreateFailCmdSettings() CmdSettings {
+	return CmdSettings{
+		Cmd:  "go",
+		Args: []string{"run", "./mocks/fake_process.go", "fail"},
+	}
+}

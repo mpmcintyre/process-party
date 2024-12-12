@@ -10,10 +10,10 @@ import (
 )
 
 // Creates a process with non-default values and waiting values
-func createWaitProcess(command string, args []string) runner.Process {
+func createWaitProcess(command string, args []string, startDelay int) runner.Process {
 	var tpExit runner.ExitCommand = "wait"
 	var tpColour runner.ColourCode = "blue"
-	var tpDelays int = 1
+	var tpDelays int = 0
 
 	return runner.Process{
 		Name:            "wait",
@@ -25,10 +25,11 @@ func createWaitProcess(command string, args []string) runner.Process {
 		OnFailure:       tpExit,
 		OnComplete:      tpExit,
 		DisplayPid:      true,
-		Delay:           tpDelays,
+		Delay:           startDelay,
 		TimeoutOnExit:   tpDelays,
 		RestartDelay:    tpDelays,
 		Status:          runner.ExitStatusRunning,
+		Silent:          true,
 		// These must be set by the config file not the process
 		ShowTimestamp:    false,
 		SeperateNewLines: false,
@@ -36,10 +37,10 @@ func createWaitProcess(command string, args []string) runner.Process {
 }
 
 // Creates a process with non-default values
-func createRestartProcess(command string, args []string) runner.Process {
+func createRestartProcess(command string, args []string, restartDelay int) runner.Process {
 	var tpExit runner.ExitCommand = "restart"
 	var tpColour runner.ColourCode = "yellow"
-	var tpDelays int = 1
+	var tpDelays int = 0
 
 	return runner.Process{
 		Name:            "restart",
@@ -53,8 +54,9 @@ func createRestartProcess(command string, args []string) runner.Process {
 		DisplayPid:      true,
 		Delay:           tpDelays,
 		TimeoutOnExit:   tpDelays,
-		RestartDelay:    tpDelays,
+		RestartDelay:    restartDelay,
 		Status:          runner.ExitStatusRunning,
+		Silent:          true,
 		// These must be set by the config file not the process
 		ShowTimestamp:    false,
 		SeperateNewLines: false,
@@ -65,7 +67,7 @@ func createRestartProcess(command string, args []string) runner.Process {
 func createBuzzkillProcess(command string, args []string) runner.Process {
 	var tpExit runner.ExitCommand = "buzzkill"
 	var tpColour runner.ColourCode = "green"
-	var tpDelays int = 1
+	var tpDelays int = 0
 
 	return runner.Process{
 		Name:            "buzzkill",
@@ -81,9 +83,55 @@ func createBuzzkillProcess(command string, args []string) runner.Process {
 		TimeoutOnExit:   tpDelays,
 		RestartDelay:    tpDelays,
 		Status:          runner.ExitStatusRunning,
+		Silent:          true,
 		// These must be set by the config file not the process
 		ShowTimestamp:    false,
 		SeperateNewLines: false,
+	}
+}
+
+func TestInternalBuzzkill(t *testing.T) {
+	var wg sync.WaitGroup
+
+	// Test that each one works by creating a file with the name of the process
+	// delay := 100 //ms
+	cmdSettings := testHelpers.CreateFailCmdSettings()
+	buzkillProcess := createBuzzkillProcess(cmdSettings.Cmd, cmdSettings.Args)
+
+	wg.Add(1)
+
+	// Create the task output channels
+	taskChannel := runner.TaskChannelsOut{
+		Buzzkill:     make(chan bool),
+		EndOfCommand: make(chan string),
+	}
+
+	mainChannel := runner.MainChannelsOut{
+		Buzzkill: make(chan bool),
+		StdIn:    make(chan string),
+	}
+
+	context := runner.CreateContext(
+		&buzkillProcess,
+		&wg,
+		mainChannel,
+		taskChannel,
+	)
+
+	buzzkilled := false
+	go func() {
+		<-taskChannel.EndOfCommand
+		t.Log("EOC recieved")
+	}()
+	go func() {
+		buzzkilled = <-taskChannel.Buzzkill
+		t.Log("Buzkill recieved")
+	}()
+	go context.Run()
+	wg.Wait()
+
+	if !buzzkilled {
+		t.Fatal("Process ran to completion. Context did not buzzkill on exit")
 	}
 }
 
@@ -137,5 +185,9 @@ func TestWait(t *testing.T) {
 }
 
 func TestRestart(t *testing.T) {
+
+}
+
+func TestStartDelay(t *testing.T) {
 
 }
