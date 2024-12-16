@@ -37,7 +37,7 @@ func createWaitProcess(command string, args []string, startDelay int) runner.Pro
 }
 
 // Creates a process with non-default values
-func createRestartProcess(command string, args []string, restartDelay int) runner.Process {
+func createRestartProcess(command string, args []string, restartAttempts int, restartDelay int) runner.Process {
 	var tpExit runner.ExitCommand = "restart"
 	var tpColour runner.ColourCode = "yellow"
 	var tpDelays int = 0
@@ -47,7 +47,7 @@ func createRestartProcess(command string, args []string, restartDelay int) runne
 		Command:         command,
 		Args:            args,
 		Prefix:          "restart",
-		RestartAttempts: 0,
+		RestartAttempts: restartAttempts,
 		Color:           tpColour,
 		OnFailure:       tpExit,
 		OnComplete:      tpExit,
@@ -172,7 +172,7 @@ func TestExternalBuzzkill(t *testing.T) {
 	t1 := time.Now()
 	mainChannel.Buzzkill <- true
 	wg.Wait()
-	if time.Since(t1) < time.Duration(sleepDuration) {
+	if time.Since(t1) > time.Duration(sleepDuration)*time.Second {
 		t.Fatal("Process ran to completion. Context did not exit on buzzkill")
 	}
 	if context.Process.Status == runner.ExitStatusRunning {
@@ -181,11 +181,116 @@ func TestExternalBuzzkill(t *testing.T) {
 }
 
 func TestWait(t *testing.T) {
+	var wg sync.WaitGroup
 
+	// Test that each one works by creating a file with the name of the process
+	sleepDuration := 1 // Seconds
+	delay := 100       //ms
+
+	if delay/1000 > sleepDuration/2 {
+		t.Fatalf("delay duration cannot be larger than sleepDuration/2, delay=%d ms, sleep=%d s", delay, sleepDuration)
+	}
+	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
+	complete := createWaitProcess(cmdSettings.Cmd, cmdSettings.Args, 0)
+
+	wg.Add(1)
+
+	// Create the task output channels
+	taskChannel := runner.TaskChannelsOut{
+		Buzzkill:     make(chan bool),
+		EndOfCommand: make(chan string),
+	}
+
+	mainChannel := runner.MainChannelsOut{
+		Buzzkill: make(chan bool),
+		StdIn:    make(chan string),
+	}
+
+	context := runner.CreateContext(
+		&complete,
+		&wg,
+		mainChannel,
+		taskChannel,
+	)
+	buzzkilled := false
+	go context.Run()
+	t1 := time.Now()
+	go func() {
+		<-taskChannel.EndOfCommand
+		t.Log("EOC recieved")
+	}()
+	go func() {
+		buzzkilled = <-taskChannel.Buzzkill
+		t.Log("Buzkill recieved")
+	}()
+	wg.Wait()
+	if time.Since(t1) < time.Duration(sleepDuration) {
+		t.Fatal("Process did not run to completion")
+	}
+	if buzzkilled {
+		t.Fatal("Context recieved buzzkill")
+
+	}
+	if context.Process.Status == runner.ExitStatusRunning {
+		t.Fatal("Context run status is still running.")
+	}
 }
 
 func TestRestart(t *testing.T) {
+	var wg sync.WaitGroup
 
+	// Test that each one works by creating a file with the name of the process
+	sleepDuration := 1 // Seconds
+	delay := 100       //ms
+	restartAttempts := 3
+	if delay/1000 > sleepDuration/2 {
+		t.Fatalf("delay duration cannot be larger than sleepDuration/2, delay=%d ms, sleep=%d s", delay, sleepDuration)
+	}
+	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
+	complete := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, 0)
+
+	wg.Add(1)
+
+	// Create the task output channels
+	taskChannel := runner.TaskChannelsOut{
+		Buzzkill:     make(chan bool),
+		EndOfCommand: make(chan string),
+	}
+
+	mainChannel := runner.MainChannelsOut{
+		Buzzkill: make(chan bool),
+		StdIn:    make(chan string),
+	}
+
+	context := runner.CreateContext(
+		&complete,
+		&wg,
+		mainChannel,
+		taskChannel,
+	)
+	buzzkilled := false
+	go context.Run()
+	t1 := time.Now()
+	go func() {
+		<-taskChannel.EndOfCommand
+		t.Log("EOC recieved")
+	}()
+	go func() {
+		buzzkilled = <-taskChannel.Buzzkill
+		t.Log("Buzkill recieved")
+	}()
+	// TODO: Fix this test, it should fail atm
+	wg.Wait()
+	if time.Since(t1) < time.Duration(sleepDuration*restartAttempts) {
+		t.Fatal("Process did not run to completion")
+	}
+	if buzzkilled {
+		t.Fatal("Context recieved buzzkill")
+
+	}
+	if context.Process.Status == runner.ExitStatusRunning {
+		t.Fatal("Context run status is still running.")
+	}
 }
 
 func TestStartDelay(t *testing.T) {

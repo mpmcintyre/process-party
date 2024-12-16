@@ -15,6 +15,7 @@ func main() {
 	switch args[0] {
 	case "sleep":
 		i, err := strconv.Atoi(args[1])
+		fmt.Printf("Sleeping for %d second(s)\n", i)
 		if err != nil {
 			log.Fatal(err)
 		}
