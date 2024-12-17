@@ -28,6 +28,11 @@ type Context struct {
 	MainChannelsOut MainChannelsOut
 	TaskChannelsOut TaskChannelsOut
 	wg              *sync.WaitGroup
+	cmd             *exec.Cmd
+	infoWriter      *customWriter
+	errorWriter     *customWriter
+	readPipe        *io.PipeReader
+	writePipe       *io.PipeWriter
 	// outb, errb   bytes.Buffer
 }
 
@@ -54,131 +59,143 @@ func (c *Context) GetStatusAsStr() string {
 	return "Unknown"
 }
 
-func (c *Context) Run() {
-	// Create command
-	cmd := exec.Command(c.Process.Command, c.Process.Args...)
-	cmd.Env = os.Environ() // Set the full environment, including PATH
+func (c *Context) setupCmd() {
+	c.cmd = exec.Command(c.Process.Command, c.Process.Args...)
+	c.cmd.Env = os.Environ() // Set the full environment, including PATH
 	// Create IO
-	r, w := io.Pipe()                                                                 // Write into the command
-	infoWriter := &customWriter{w: os.Stdout, severity: "info", process: c.Process}   // Write info out
-	errorWriter := &customWriter{w: os.Stdout, severity: "error", process: c.Process} // Write errors out
+	r, w := io.Pipe()
+	c.readPipe = r
+	c.writePipe = w
+	// Write into the command
+	c.infoWriter = &customWriter{w: os.Stdout, severity: "info", process: c.Process}   // Write info out
+	c.errorWriter = &customWriter{w: os.Stdout, severity: "error", process: c.Process} // Write errors out
 	// Set IO
-	cmd.Stdout = infoWriter
-	cmd.Stderr = errorWriter
-	cmd.Stdin = r
+	c.cmd.Stdout = c.infoWriter
+	c.cmd.Stderr = c.errorWriter
+	c.cmd.Stdin = r
+}
 
+func (c *Context) Run() {
+	defer c.wg.Done()
+	// Create command
+	c.setupCmd()
 	displayedPid := false // Simple bool to show boolean at the start of the process
 	c.Process.Status = ExitStatusRunning
 
 	// Wait for the start delay
-	infoWriter.Write([]byte(fmt.Sprintf("Starting process - %d second delay", c.Process.Delay)))
+	c.infoWriter.Write([]byte(fmt.Sprintf("Starting process - %d second delay", c.Process.Delay)))
 	time.Sleep(time.Duration(c.Process.Delay) * time.Second)
 	// Start the command
-	startErr := cmd.Start()
+	startErr := c.cmd.Start()
 	// Go wait somewhere else lamo (*insert you cant sit with us meme*)
-	go cmd.Wait()
+	go c.cmd.Wait()
 
-cmdLoop:
+commandLoop:
 	for {
 
 		select {
 		case value := <-c.MainChannelsOut.StdIn: // Received std in
-			w.Write([]byte(value + "\n"))
+			c.writePipe.Write([]byte(value + "\n"))
 		case <-c.MainChannelsOut.Buzzkill: // Recieved buzzkill
 			c.Process.Status = ExitStatusExited
-			infoWriter.Write([]byte("Recieved buzzkill command"))
+			c.infoWriter.Write([]byte("Recieved buzzkill command"))
 			// Wait for timeout_on_exit duration
 			startTime := time.Now()
 			timeout := time.Duration(c.Process.TimeoutOnExit) * time.Second
-			if cmd.Process != nil {
-				cmd.Process.Signal(os.Kill)
+			if c.cmd.Process != nil {
+				c.cmd.Process.Signal(os.Kill)
 			}
 			for {
 				elapsed := time.Since(startTime)
 
 				if elapsed > timeout {
-					infoWriter.Write([]byte("Gracefull shutdown timed out"))
-					if cmd.Process != nil {
-						cmd.Process.Kill()
+					c.infoWriter.Write([]byte("Gracefull shutdown timed out"))
+					if c.cmd.Process != nil {
+						c.cmd.Process.Kill()
 					}
 					break
 				}
-				if cmd.ProcessState != nil {
+				if c.cmd.ProcessState != nil {
 					break
 				}
 				time.Sleep(10 * time.Millisecond)
 			}
 
-			break cmdLoop
+			break commandLoop
 
 		default:
 			// Display the PID on the first line
-			if !displayedPid && cmd.Process != nil {
-				infoWriter.Write([]byte(fmt.Sprintf("PID = %d", cmd.Process.Pid)))
-				c.Process.Pid = fmt.Sprintf("%d", cmd.Process.Pid)
+			if !displayedPid && c.cmd.Process != nil {
+				c.infoWriter.Write([]byte(fmt.Sprintf("PID = %d", c.cmd.Process.Pid)))
+				c.Process.Pid = fmt.Sprintf("%d", c.cmd.Process.Pid)
 				displayedPid = true
 			}
 			// Handle the process exiting
-			if cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
-				if cmd.ProcessState.ExitCode() == 0 {
+			if c.cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
+				if c.cmd.ProcessState.ExitCode() == 0 {
 					c.Process.Status = ExitStatusExited
-					startErr = c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
+					startErr = c.handleCloseConditions(*c.infoWriter, c.Process.OnComplete)
 				} else if startErr != nil {
-					infoWriter.Write([]byte("Failed to start"))
-					errorWriter.Write([]byte(startErr.Error()))
+					c.infoWriter.Write([]byte("Failed to start"))
+					c.errorWriter.Write([]byte(startErr.Error()))
 					c.Process.Status = ExitStatusFailed
-					startErr = c.handleCloseConditions(*errorWriter, cmd, c.Process.OnFailure)
+					startErr = c.handleCloseConditions(*c.errorWriter, c.Process.OnFailure)
 				} else {
 					c.Process.Status = ExitStatusExited
 					// Note! This will block if not listened to in tests
 					c.TaskChannelsOut.EndOfCommand <- c.Process.Name
-					startErr = c.handleCloseConditions(*infoWriter, cmd, c.Process.OnComplete)
+					startErr = c.handleCloseConditions(*c.infoWriter, c.Process.OnComplete)
 				}
 
 				// If the end commands are anything else we dont give a shit
 				// If the process is restarted this should be false
-				if cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
-					break cmdLoop
+				if c.cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
+					break commandLoop
 				}
 				c.Process.Status = ExitStatusRunning
 			}
 			// Stream the initial start stream values and set it to an empty string
 			if c.Process.StartStream != "" {
-				w.Write([]byte(c.Process.StartStream + "\n"))
+				c.writePipe.Write([]byte(c.Process.StartStream + "\n"))
 				c.Process.StartStream = ""
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
-	r.Close()
-	w.Close()
-	cmd.Wait()
-	infoWriter.Write([]byte("~Exiting context~"))
-
+	c.writePipe.Close()
+	c.readPipe.Close()
+	c.cmd.Wait()
 	// The process exits so quick we need to delay to ensure that the buzkill command is sent
 	time.Sleep(time.Duration(10) * time.Millisecond)
-	c.wg.Done()
 }
 
-func (c *Context) handleCloseConditions(writer customWriter, cmd *exec.Cmd, exitHandler ExitCommand) error {
+func (c *Context) handleCloseConditions(writer customWriter, exitHandler ExitCommand) error {
 	if exitHandler == ExitCommandBuzzkill {
 		writer.Write([]byte("Process exited - Buzzkilling"))
 		c.TaskChannelsOut.Buzzkill <- true
 		return errors.New("exit code 1")
 	}
 	if exitHandler == ExitCommandRestart {
+		// We cannot reuse the c.cmd, so we use recursion with counters
 		if c.Process.RestartAttempts == 0 {
 			return errors.New("exit code 1")
 		}
 		// Remove one attempt (negative numbers imply to always restart)
-		if c.Process.RestartAttempts > 0 {
+		if c.Process.RestartAttempts+1 > 0 {
 			c.Process.RestartAttempts = c.Process.RestartAttempts - 1
 		}
+
 		c.Process.Status = ExitStatusRestarting
 		writer.Write([]byte(fmt.Sprintf("Process exited - Restarting, %d second restart delay, %d attempts remaining", c.Process.RestartDelay, c.Process.RestartAttempts)))
 		time.Sleep(time.Duration(c.Process.RestartDelay) * time.Second)
-		err := cmd.Start()
-		return err
+		// Add to the wait group, create a new context, and run the new command syncrounously
+		// This might cause some issues if he process needs to restart indefinitely
+		c.wg.Add(1)
+		c := CreateContext(
+			c.Process, c.wg, c.MainChannelsOut, c.TaskChannelsOut,
+		)
+		c.Run()
+		return errors.New("exit code 1")
 	}
 	if exitHandler == ExitCommandWait {
 		writer.Write([]byte("Process exited - waiting"))

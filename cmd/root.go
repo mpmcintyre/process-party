@@ -101,10 +101,10 @@ using ctrl+c or input "exit" into the command line.
 						break monitorLoop
 					case <-taskChannel.EndOfCommand:
 						runningProcessCount--
-						if runningProcessCount <= 0 {
-							fmt.Println("All processes exited")
-							break monitorLoop
-						}
+						// if runningProcessCount <= 0 {
+						// 	fmt.Println("All processes exited")
+						// 	break monitorLoop
+						// }
 					}
 				}
 
