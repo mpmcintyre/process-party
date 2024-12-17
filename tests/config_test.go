@@ -169,6 +169,7 @@ func createNonDefaultConfig(numberOfProcesses int, nameStamp string, tempDir str
 // Create configs in every filetype with non-default values, write them to files, and parse the files
 // - Make sure that all settings are non-default
 func TestConfigParsing(t *testing.T) {
+	t.Parallel()
 	t.Log("Testing config parsing")
 	tempDir := "./.tmp/config/"
 	testName := "test"

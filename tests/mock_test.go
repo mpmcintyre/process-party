@@ -42,6 +42,7 @@ func FileExists(filename string, path string) (bool, error) {
 
 // Tests
 func TestTouch(t *testing.T) {
+	t.Parallel()
 	filename := "test.file"
 	dirFound, err := FileExists(filename, "./")
 	if err != nil {
@@ -72,6 +73,7 @@ func TestTouch(t *testing.T) {
 }
 
 func TestMkdir(t *testing.T) {
+	t.Parallel()
 	dirName := "test_dir"
 	dirFound, err := DirectoryExists(dirName, "./")
 	if err != nil {
@@ -102,6 +104,7 @@ func TestMkdir(t *testing.T) {
 }
 
 func TestSleep(t *testing.T) {
+	t.Parallel()
 	sleepTime := 1
 	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepTime)
 	cmd := exec.Command(cmdSettings.Cmd, cmdSettings.Args...)

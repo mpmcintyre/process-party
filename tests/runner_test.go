@@ -91,6 +91,7 @@ func createBuzzkillProcess(command string, args []string) runner.Process {
 }
 
 func TestInternalBuzzkill(t *testing.T) {
+	t.Parallel()
 	var wg sync.WaitGroup
 
 	// Test that each one works by creating a file with the name of the process
@@ -136,6 +137,7 @@ func TestInternalBuzzkill(t *testing.T) {
 }
 
 func TestExternalBuzzkill(t *testing.T) {
+	t.Parallel()
 	var wg sync.WaitGroup
 
 	// Test that each one works by creating a file with the name of the process
@@ -181,6 +183,7 @@ func TestExternalBuzzkill(t *testing.T) {
 }
 
 func TestWait(t *testing.T) {
+	t.Parallel()
 	var wg sync.WaitGroup
 
 	// Test that each one works by creating a file with the name of the process
@@ -237,15 +240,13 @@ func TestWait(t *testing.T) {
 }
 
 func TestRestart(t *testing.T) {
+	t.Parallel()
 	var wg sync.WaitGroup
 
 	// Test that each one works by creating a file with the name of the process
 	sleepDuration := 1 // Seconds
-	delay := 100       //ms
 	restartAttempts := 3
-	if delay/1000 > sleepDuration/2 {
-		t.Fatalf("delay duration cannot be larger than sleepDuration/2, delay=%d ms, sleep=%d s", delay, sleepDuration)
-	}
+
 	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
 	complete := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, 0)
 
@@ -279,9 +280,8 @@ func TestRestart(t *testing.T) {
 		buzzkilled = <-taskChannel.Buzzkill
 		t.Log("Buzkill recieved")
 	}()
-	// TODO: Fix this test, it should fail atm
 	wg.Wait()
-	if time.Since(t1) < time.Duration(sleepDuration*restartAttempts) {
+	if time.Since(t1) < time.Duration(sleepDuration*restartAttempts)*time.Second {
 		t.Fatal("Process did not run to completion")
 	}
 	if buzzkilled {
