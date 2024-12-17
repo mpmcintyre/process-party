@@ -15,10 +15,7 @@ run-yml:
 
 
 tests:
-	go test -parallel=4 ./tests
-
-tests-profile:
-	go test -cpuprofile cpu.prof -memprofile mem.prof -parallel=4  -bench . ./tests
+	go test ./tests
 
 tests-verbose:
 	go test -cpuprofile cpu.prof -memprofile mem.prof -bench . ./tests -v
