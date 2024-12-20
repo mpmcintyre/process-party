@@ -13,7 +13,6 @@ run-yaml:
 run-yml:
 	go run . ./examples/example.yml
 
-
 tests:
 	go test ./tests
 

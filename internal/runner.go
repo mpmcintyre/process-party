@@ -13,8 +13,8 @@ import (
 
 // Communication from task to main thread
 type TaskChannelsOut struct {
-	Buzzkill     chan bool
-	EndOfCommand chan string
+	Buzzkill   chan bool
+	ExitStatus chan int
 }
 
 // Communication from main thread to all threads
@@ -76,7 +76,7 @@ func (c *Context) setupCmd() {
 }
 
 func (c *Context) Run() {
-	defer c.wg.Done()
+
 	// Create command
 	c.setupCmd()
 	displayedPid := false // Simple bool to show boolean at the start of the process
@@ -84,7 +84,9 @@ func (c *Context) Run() {
 
 	// Wait for the start delay
 	c.infoWriter.Write([]byte(fmt.Sprintf("Starting process - %d second delay", c.Process.Delay)))
-	time.Sleep(time.Duration(c.Process.Delay) * time.Second)
+	if c.Process.Delay > 0 {
+		time.Sleep(time.Duration(c.Process.Delay) * time.Second)
+	}
 	// Start the command
 	startErr := c.cmd.Start()
 	// Go wait somewhere else lamo (*insert you cant sit with us meme*)
@@ -130,23 +132,35 @@ commandLoop:
 				c.Process.Pid = fmt.Sprintf("%d", c.cmd.Process.Pid)
 				displayedPid = true
 			}
+
+			// Stream the initial start stream values and set it to an empty string
+			if c.Process.StartStream != "" {
+				c.writePipe.Write([]byte(c.Process.StartStream + "\n"))
+				c.Process.StartStream = ""
+			}
+
 			// Handle the process exiting
 			if c.cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
 				if c.cmd.ProcessState.ExitCode() == 0 {
 					c.Process.Status = ExitStatusExited
 					startErr = c.handleCloseConditions(*c.infoWriter, c.Process.OnComplete)
+				} else if c.cmd.ProcessState.ExitCode() == 1 {
+					c.errorWriter.Write([]byte("Detected Process failure"))
+					c.Process.Status = ExitStatusFailed
+					startErr = c.handleCloseConditions(*c.errorWriter, c.Process.OnFailure)
 				} else if startErr != nil {
-					c.infoWriter.Write([]byte("Failed to start"))
+					c.errorWriter.Write([]byte("Failed to start"))
 					c.errorWriter.Write([]byte(startErr.Error()))
 					c.Process.Status = ExitStatusFailed
 					startErr = c.handleCloseConditions(*c.errorWriter, c.Process.OnFailure)
 				} else {
 					c.Process.Status = ExitStatusExited
 					// Note! This will block if not listened to in tests
-					c.TaskChannelsOut.EndOfCommand <- c.Process.Name
 					startErr = c.handleCloseConditions(*c.infoWriter, c.Process.OnComplete)
 				}
 
+				// Note! This will block if not listened to in tests
+				c.TaskChannelsOut.ExitStatus <- c.cmd.ProcessState.ExitCode()
 				// If the end commands are anything else we dont give a shit
 				// If the process is restarted this should be false
 				if c.cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
@@ -154,12 +168,10 @@ commandLoop:
 				}
 				c.Process.Status = ExitStatusRunning
 			}
-			// Stream the initial start stream values and set it to an empty string
-			if c.Process.StartStream != "" {
-				c.writePipe.Write([]byte(c.Process.StartStream + "\n"))
-				c.Process.StartStream = ""
-			}
+
+			// Don't spin too hard
 			time.Sleep(10 * time.Millisecond)
+
 		}
 	}
 	c.writePipe.Close()
@@ -167,6 +179,7 @@ commandLoop:
 	c.cmd.Wait()
 	// The process exits so quick we need to delay to ensure that the buzkill command is sent
 	time.Sleep(time.Duration(10) * time.Millisecond)
+	c.wg.Done()
 }
 
 func (c *Context) handleCloseConditions(writer customWriter, exitHandler ExitCommand) error {
@@ -177,20 +190,25 @@ func (c *Context) handleCloseConditions(writer customWriter, exitHandler ExitCom
 	}
 	if exitHandler == ExitCommandRestart {
 		// We cannot reuse the c.cmd, so we use recursion with counters
-		if c.Process.RestartAttempts == 0 {
-			return errors.New("exit code 1")
-		}
 		// Remove one attempt (negative numbers imply to always restart)
 		if c.Process.RestartAttempts+1 > 0 {
 			c.Process.RestartAttempts = c.Process.RestartAttempts - 1
 		}
 
+		if c.Process.RestartAttempts == 0 {
+			writer.Write([]byte("No restart attempts left, exiting"))
+			return errors.New("exit code 1")
+		}
+
 		c.Process.Status = ExitStatusRestarting
 		writer.Write([]byte(fmt.Sprintf("Process exited - Restarting, %d second restart delay, %d attempts remaining", c.Process.RestartDelay, c.Process.RestartAttempts)))
-		time.Sleep(time.Duration(c.Process.RestartDelay) * time.Second)
+		if c.Process.RestartDelay > 0 {
+			time.Sleep(time.Duration(c.Process.RestartDelay) * time.Second)
+		}
 		// Add to the wait group, create a new context, and run the new command syncrounously
 		// This might cause some issues if he process needs to restart indefinitely
 		c.wg.Add(1)
+
 		c := CreateContext(
 			c.Process, c.wg, c.MainChannelsOut, c.TaskChannelsOut,
 		)
@@ -199,8 +217,6 @@ func (c *Context) handleCloseConditions(writer customWriter, exitHandler ExitCom
 	}
 	if exitHandler == ExitCommandWait {
 		writer.Write([]byte("Process exited - waiting"))
-		// Note! This will block if not listened to in tests
-		c.TaskChannelsOut.EndOfCommand <- c.Process.Name
 		return errors.New("waiting for other processes - exit code 1")
 	}
 	return errors.New("unknown exit condition - exit status 1")

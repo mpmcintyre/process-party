@@ -67,8 +67,8 @@ using ctrl+c or input "exit" into the command line.
 
 			// Create the task output channels
 			taskChannel := runner.TaskChannelsOut{
-				Buzzkill:     make(chan bool),
-				EndOfCommand: make(chan string),
+				Buzzkill:   make(chan bool),
+				ExitStatus: make(chan int),
 			}
 
 			// Create the task input channels
@@ -99,7 +99,7 @@ using ctrl+c or input "exit" into the command line.
 							}
 						}
 						break monitorLoop
-					case <-taskChannel.EndOfCommand:
+					case <-taskChannel.ExitStatus:
 						runningProcessCount--
 						// if runningProcessCount <= 0 {
 						// 	fmt.Println("All processes exited")

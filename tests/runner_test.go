@@ -58,8 +58,8 @@ func createRestartProcess(command string, args []string, restartAttempts int, re
 		Status:          runner.ExitStatusRunning,
 		Silent:          true,
 		// These must be set by the config file not the process
-		ShowTimestamp:    false,
-		SeperateNewLines: false,
+		ShowTimestamp:    true,
+		SeperateNewLines: true,
 	}
 }
 
@@ -103,8 +103,8 @@ func TestInternalBuzzkill(t *testing.T) {
 
 	// Create the task output channels
 	taskChannel := runner.TaskChannelsOut{
-		Buzzkill:     make(chan bool),
-		EndOfCommand: make(chan string),
+		Buzzkill:   make(chan bool),
+		ExitStatus: make(chan int),
 	}
 
 	mainChannel := runner.MainChannelsOut{
@@ -121,7 +121,7 @@ func TestInternalBuzzkill(t *testing.T) {
 
 	buzzkilled := false
 	go func() {
-		<-taskChannel.EndOfCommand
+		<-taskChannel.ExitStatus
 		t.Log("EOC recieved")
 	}()
 	go func() {
@@ -154,8 +154,8 @@ func TestExternalBuzzkill(t *testing.T) {
 
 	// Create the task output channels
 	taskChannel := runner.TaskChannelsOut{
-		Buzzkill:     make(chan bool),
-		EndOfCommand: make(chan string),
+		Buzzkill:   make(chan bool),
+		ExitStatus: make(chan int),
 	}
 
 	mainChannel := runner.MainChannelsOut{
@@ -200,8 +200,8 @@ func TestWait(t *testing.T) {
 
 	// Create the task output channels
 	taskChannel := runner.TaskChannelsOut{
-		Buzzkill:     make(chan bool),
-		EndOfCommand: make(chan string),
+		Buzzkill:   make(chan bool),
+		ExitStatus: make(chan int),
 	}
 
 	mainChannel := runner.MainChannelsOut{
@@ -219,7 +219,7 @@ func TestWait(t *testing.T) {
 	go context.Run()
 	t1 := time.Now()
 	go func() {
-		<-taskChannel.EndOfCommand
+		<-taskChannel.ExitStatus
 		t.Log("EOC recieved")
 	}()
 	go func() {
@@ -248,14 +248,14 @@ func TestRestart(t *testing.T) {
 	restartAttempts := 3
 
 	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
-	complete := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, 0)
-
+	command := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, 0)
+	command.Silent = true
 	wg.Add(1)
 
 	// Create the task output channels
 	taskChannel := runner.TaskChannelsOut{
-		Buzzkill:     make(chan bool),
-		EndOfCommand: make(chan string),
+		Buzzkill:   make(chan bool),
+		ExitStatus: make(chan int),
 	}
 
 	mainChannel := runner.MainChannelsOut{
@@ -264,7 +264,7 @@ func TestRestart(t *testing.T) {
 	}
 
 	context := runner.CreateContext(
-		&complete,
+		&command,
 		&wg,
 		mainChannel,
 		taskChannel,
@@ -273,12 +273,16 @@ func TestRestart(t *testing.T) {
 	go context.Run()
 	t1 := time.Now()
 	go func() {
-		<-taskChannel.EndOfCommand
-		t.Log("EOC recieved")
+		for attempt := range restartAttempts {
+			exit := <-taskChannel.ExitStatus
+			t.Logf("Attept %d - Exit status %d recieved\n", attempt+1, exit)
+		}
 	}()
 	go func() {
-		buzzkilled = <-taskChannel.Buzzkill
-		t.Log("Buzkill recieved")
+		for attempt := range restartAttempts {
+			buzzkilled = <-taskChannel.Buzzkill
+			t.Logf("Attept %d - buzzkill recieved\n", attempt+1)
+		}
 	}()
 	wg.Wait()
 	if time.Since(t1) < time.Duration(sleepDuration*restartAttempts)*time.Second {
@@ -293,6 +297,119 @@ func TestRestart(t *testing.T) {
 	}
 }
 
-func TestStartDelay(t *testing.T) {
+func TestRestartWithDelays(t *testing.T) {
+	t.Parallel()
+	var wg sync.WaitGroup
 
+	// Test that each one works by creating a file with the name of the process
+	restartDelay := 1 // Seconds
+	restartAttempts := 3
+
+	cmdSettings := testHelpers.CreateFailCmdSettings()
+	command := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, restartDelay)
+	command.Prefix = "restart-delay"
+	command.Silent = true
+
+	wg.Add(1)
+
+	// Create the task output channels
+	taskChannel := runner.TaskChannelsOut{
+		Buzzkill:   make(chan bool),
+		ExitStatus: make(chan int),
+	}
+
+	mainChannel := runner.MainChannelsOut{
+		Buzzkill: make(chan bool),
+		StdIn:    make(chan string),
+	}
+
+	context := runner.CreateContext(
+		&command,
+		&wg,
+		mainChannel,
+		taskChannel,
+	)
+	buzzkilled := false
+	go context.Run()
+	t1 := time.Now()
+	go func() {
+		for attempt := range restartAttempts {
+			exit := <-taskChannel.ExitStatus
+			t.Logf("Attept %d - Exit status %d recieved\n", attempt+1, exit)
+		}
+	}()
+	go func() {
+		for attempt := range restartAttempts {
+			buzzkilled = <-taskChannel.Buzzkill
+			t.Logf("Attept %d - buzzkill recieved\n", attempt+1)
+		}
+	}()
+	wg.Wait()
+	if time.Since(t1) < time.Duration(restartDelay*restartAttempts)*time.Second {
+		t.Fatal("Process did not run to completion")
+	}
+	if buzzkilled {
+		t.Fatal("Context recieved buzzkill")
+
+	}
+	if context.Process.Status == runner.ExitStatusRunning {
+		t.Fatal("Context run status is still running.")
+	}
+}
+
+func TestStartDelay(t *testing.T) {
+	t.Parallel()
+	var wg sync.WaitGroup
+
+	// Test that each one works by creating a file with the name of the process
+	sleepDuration := 1 // Seconds
+	delay := 100       //ms
+
+	if delay/1000 > sleepDuration/2 {
+		t.Fatalf("delay duration cannot be larger than sleepDuration/2, delay=%d ms, sleep=%d s", delay, sleepDuration)
+	}
+	cmdSettings := testHelpers.CreateSleepCmdSettings(0)
+	command := createWaitProcess(cmdSettings.Cmd, cmdSettings.Args, 0)
+	command.Delay = sleepDuration
+
+	wg.Add(1)
+
+	// Create the task output channels
+	taskChannel := runner.TaskChannelsOut{
+		Buzzkill:   make(chan bool),
+		ExitStatus: make(chan int),
+	}
+
+	mainChannel := runner.MainChannelsOut{
+		Buzzkill: make(chan bool),
+		StdIn:    make(chan string),
+	}
+
+	context := runner.CreateContext(
+		&command,
+		&wg,
+		mainChannel,
+		taskChannel,
+	)
+	buzzkilled := false
+	go context.Run()
+	t1 := time.Now()
+	go func() {
+		<-taskChannel.ExitStatus
+		t.Log("EOC recieved")
+	}()
+	go func() {
+		buzzkilled = <-taskChannel.Buzzkill
+		t.Log("Buzkill recieved")
+	}()
+	wg.Wait()
+	if time.Since(t1) < time.Duration(sleepDuration) {
+		t.Fatal("Process did not run to completion")
+	}
+	if buzzkilled {
+		t.Fatal("Context recieved buzzkill")
+	}
+	if context.Process.Status == runner.ExitStatusRunning {
+		t.Fatal("Context run status is still running.")
+	}
 }
