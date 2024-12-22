@@ -13,8 +13,14 @@ run-yaml:
 run-yml:
 	go run . ./examples/example.yml
 
-tests:
+unit-test:
+	go test ./internal -v
+
+tests: unit-tests
 	go test ./tests
 
-tests-verbose:
+unit-test-verbose:
+	go test -cpuprofile cpu.prof -memprofile mem.prof -bench . ./internal -v
+
+tests-verbose: unit-test-verbose
 	go test -cpuprofile cpu.prof -memprofile mem.prof -bench . ./tests -v

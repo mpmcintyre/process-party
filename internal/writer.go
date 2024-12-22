@@ -56,8 +56,10 @@ func (e customWriter) Write(p []byte) (int, error) {
 
 	// Take out common line spacing
 	message = strings.Replace(message, "\r", "", -1)
-	message = strings.Replace(message, "\n\n", "", -1)
-	message = strings.Replace(message, "\r\n", "", -1)
+	// message = strings.Replace(message, "\n", "", -1)
+	// message = strings.Replace(message, "\r\n", "", -1)
+	message = strings.Replace(message, "\t", "", -1)
+
 	x := strings.Split(message, "\n")
 
 	if e.process.SeperateNewLines {
