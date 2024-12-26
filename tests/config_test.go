@@ -22,33 +22,37 @@ var tpRestartAttempts int = 1
 var startStream string = "start"
 
 // Creates a process with non-default values
-func createProcess(increment int, nameStamp string) runner.Process {
-	return runner.Process{
-		Name:            nameStamp + fmt.Sprintf("%d", increment),
-		Command:         nameStamp + fmt.Sprintf("%d", increment),
-		Args:            []string{nameStamp + fmt.Sprintf("%d", increment)},
-		Prefix:          nameStamp + fmt.Sprintf("%d", increment),
-		RestartAttempts: tpRestartAttempts,
-		Color:           tpColour,
-		OnFailure:       tpExit,
-		OnComplete:      tpExit,
-		DisplayPid:      true,
-		Delay:           tpDelays,
-		TimeoutOnExit:   tpDelays,
-		RestartDelay:    tpDelays,
-		StartStream:     startStream,
-		Status:          runner.ExitStatusRunning,
-		Pid:             tpPID,
-		Silent:          true,
-		// These must be set by the config file not the process
-		ShowTimestamp:    false,
-		SeperateNewLines: false,
+func createRunTask(increment int, nameStamp string) runner.RunTask {
+	return runner.RunTask{
+		ProcessExitContext: runner.ProcessExitContext{
+			OnFailure:       tpExit,
+			OnComplete:      tpExit,
+			RestartAttempts: tpRestartAttempts,
+			RestartDelay:    tpDelays,
+			TimeoutOnExit:   tpDelays,
+		},
+		Process: runner.Process{
+			Name:        nameStamp + fmt.Sprintf("%d", increment),
+			Command:     nameStamp + fmt.Sprintf("%d", increment),
+			Args:        []string{nameStamp + fmt.Sprintf("%d", increment)},
+			Prefix:      nameStamp + fmt.Sprintf("%d", increment),
+			Color:       tpColour,
+			DisplayPid:  true,
+			Delay:       tpDelays,
+			StartStream: startStream,
+			Status:      runner.ExitStatusRunning,
+			Pid:         tpPID,
+			Silent:      true,
+			// These must be set by the config file not the process
+			ShowTimestamp:    false,
+			SeperateNewLines: false,
+		},
 	}
 }
 
 // Returns true if a default value is found
-func containsDefaultValues(process runner.Process) bool {
-	dp := runner.Process{}
+func containsDefaultValues(process runner.RunTask) bool {
+	dp := runner.RunTask{}
 	dpString, err := json.Marshal(dp)
 	if err != nil {
 		fmt.Println("Error marshaling JSON:", err)
@@ -119,7 +123,7 @@ func createNonDefaultConfig(numberOfProcesses int, nameStamp string, tempDir str
 
 	// Create x processes
 	for index := range numberOfProcesses {
-		p := createProcess(index, nameStamp)
+		p := createRunTask(index, nameStamp)
 		config.Processes = append(config.Processes, p)
 	}
 

@@ -23,9 +23,9 @@ func (m *mockWriter) Write(p []byte) (int, error) {
 
 func TestEmptyMessage(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		expected bool
+		name          string
+		input         string
+		emptyExpexted bool
 	}{
 		{"empty string", "", true},
 		{"single space", " ", true},
@@ -39,20 +39,22 @@ func TestEmptyMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := emptyMessage(tt.input)
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, tt.emptyExpexted, result)
 		})
 	}
 }
 
 func TestCustomWriterBasicOutput(t *testing.T) {
 	mock := &mockWriter{}
-	process := &Process{
-		Name:   "test",
-		Prefix: "TEST",
+	runTask := &RunTask{
+		Process: Process{
+			Name:   "test",
+			Prefix: "TEST",
+		},
 	}
 	writer := &customWriter{
 		w:        mock,
-		process:  process,
+		process:  &runTask.Process,
 		severity: "info",
 	}
 
@@ -61,7 +63,7 @@ func TestCustomWriterBasicOutput(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, len(message), n)
-	assert.Contains(t, string(mock.written), process.GetFgColour()("[TEST]")+" "+message)
+	assert.Contains(t, string(mock.written), runTask.GetFgColour()("[TEST]")+" "+message)
 	assert.NotContains(t, string(mock.written), "[TEST] hello world") // does not contain the raw string
 	assert.Contains(t, string(mock.written), "\n")
 }
@@ -81,14 +83,16 @@ func TestCustomWriterColorOutput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := &mockWriter{}
-			process := &Process{
-				Name:   "test",
-				Prefix: "TEST",
-				Color:  tt.color,
-			}
+			runTask := &RunTask{
+				Process: Process{
+					Name:   "test",
+					Prefix: "TEST",
+					Color:  tt.color,
+				}}
+
 			writer := &customWriter{
 				w:        mock,
-				process:  process,
+				process:  &runTask.Process,
 				severity: tt.severity,
 			}
 
@@ -118,14 +122,15 @@ func TestPrefixFormatting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := &mockWriter{}
-			process := &Process{
-				Prefix:     tt.prefix,
-				DisplayPid: tt.displayPid,
-				Pid:        tt.pid,
-			}
+			runTask := &RunTask{
+				Process: Process{
+					Prefix:     tt.prefix,
+					DisplayPid: tt.displayPid,
+					Pid:        tt.pid,
+				}}
 			writer := &customWriter{
 				w:       mock,
-				process: process,
+				process: &runTask.Process,
 			}
 			writer.createPrefix()
 			assert.Contains(t, writer.prefix, tt.expected)
@@ -167,13 +172,14 @@ func TestLineSeparation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := &mockWriter{}
-			process := &Process{
-				Prefix:           "TEST",
-				SeperateNewLines: tt.separateLines,
-			}
+			runTask := &RunTask{
+				Process: Process{
+					Prefix:           "TEST",
+					SeperateNewLines: tt.separateLines,
+				}}
 			writer := &customWriter{
 				w:       mock,
-				process: process,
+				process: &runTask.Process,
 			}
 
 			_, err := writer.Write([]byte(tt.input))
@@ -197,13 +203,14 @@ func TestLineSeparation(t *testing.T) {
 
 func TestTimestampFeature(t *testing.T) {
 	mock := &mockWriter{}
-	process := &Process{
-		Prefix:        "TEST",
-		ShowTimestamp: true,
-	}
+	runTask := &RunTask{
+		Process: Process{
+			Prefix:        "TEST",
+			ShowTimestamp: true,
+		}}
 	writer := &customWriter{
 		w:       mock,
-		process: process,
+		process: &runTask.Process,
 	}
 
 	_, err := writer.Write([]byte("test message"))
@@ -216,13 +223,14 @@ func TestTimestampFeature(t *testing.T) {
 
 func TestSilentMode(t *testing.T) {
 	mock := &mockWriter{}
-	process := &Process{
-		Prefix: "TEST",
-		Silent: true,
-	}
+	runTask := &RunTask{
+		Process: Process{
+			Prefix: "TEST",
+			Silent: true,
+		}}
 	writer := &customWriter{
 		w:       mock,
-		process: process,
+		process: &runTask.Process,
 	}
 
 	n, err := writer.Write([]byte("test message"))
@@ -252,10 +260,11 @@ func TestErrorHandling(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := &mockWriter{err: tt.writerError}
-			process := &Process{Prefix: "TEST"}
+			runTask := &RunTask{
+				Process: Process{Prefix: "TEST"}}
 			writer := &customWriter{
 				w:       mock,
-				process: process,
+				process: &runTask.Process,
 			}
 
 			_, err := writer.Write([]byte("test message"))

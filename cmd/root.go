@@ -58,7 +58,7 @@ using ctrl+c or input "exit" into the command line.
 		wg.Add(len(config.Processes))
 
 		// Create context and channel groups
-		contexts := []runner.Context{}
+		contexts := []runner.RunTaskContext{}
 		mainChannels := []runner.MainChannelsOut{}
 		// Keep track of number of running procesess to exit main app
 		runningProcessCount := len(config.Processes)
@@ -79,8 +79,7 @@ using ctrl+c or input "exit" into the command line.
 				})
 
 			// Create context
-			contexts = append(contexts, runner.CreateContext(
-				&process,
+			contexts = append(contexts, process.CreateContext(
 				&wg,
 				mainChannels[index],
 				taskChannel,
@@ -143,7 +142,7 @@ using ctrl+c or input "exit" into the command line.
 					}
 					input := s[1:]
 					for _, context := range contexts {
-						if context.Process.Status == runner.ExitStatusRunning {
+						if context.Task.Status == runner.ExitStatusRunning {
 							context.MainChannelsOut.StdIn <- strings.Join(input, "")
 						}
 					}
@@ -157,7 +156,7 @@ using ctrl+c or input "exit" into the command line.
 					tbl := table.New("Index", "Name", "Prefix", "Command", "Status")
 					tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
 					for index, context := range contexts {
-						tbl.AddRow(index, context.Process.Name, context.Process.Prefix, context.Process.Command, context.GetStatusAsStr())
+						tbl.AddRow(index, context.Task.Name, context.Task.Prefix, context.Task.Command, context.Task.Process.GetStatusAsStr())
 					}
 					tbl.Print()
 					fmt.Println()
@@ -165,7 +164,7 @@ using ctrl+c or input "exit" into the command line.
 					fmt.Println("Exiting all")
 
 					for _, context := range contexts {
-						if context.Process.Status == runner.ExitStatusRunning {
+						if context.Task.Status == runner.ExitStatusRunning {
 							context.MainChannelsOut.Buzzkill <- true
 						}
 					}
@@ -180,9 +179,9 @@ using ctrl+c or input "exit" into the command line.
 					found := false
 					input := s[1:]
 					for _, context := range contexts {
-						if context.Process.Name == target || context.Process.Prefix == target {
+						if context.Task.Name == target || context.Task.Prefix == target {
 							found = true
-							if context.Process.Status == runner.ExitStatusRunning {
+							if context.Task.Status == runner.ExitStatusRunning {
 								context.MainChannelsOut.StdIn <- strings.Join(input, "")
 							} else {
 								fmt.Printf("The %s command has exited, cannot write to process\n", target)

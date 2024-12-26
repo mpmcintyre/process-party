@@ -10,83 +10,96 @@ import (
 )
 
 // Creates a process with non-default values and waiting values
-func createWaitProcess(command string, args []string, startDelay int) runner.Process {
+func createWaitProcess(command string, args []string, startDelay int) runner.RunTask {
 	var tpExit runner.ExitCommand = "wait"
 	var tpColour runner.ColourCode = "blue"
 	var tpDelays int = 0
 
-	return runner.Process{
-		Name:            "wait",
-		Command:         command,
-		Args:            args,
-		Prefix:          "wait",
-		RestartAttempts: 0,
-		Color:           tpColour,
-		OnFailure:       tpExit,
-		OnComplete:      tpExit,
-		DisplayPid:      true,
-		Delay:           startDelay,
-		TimeoutOnExit:   tpDelays,
-		RestartDelay:    tpDelays,
-		Status:          runner.ExitStatusRunning,
-		Silent:          true,
-		// These must be set by the config file not the process
-		ShowTimestamp:    false,
-		SeperateNewLines: false,
+	return runner.RunTask{
+		Process: runner.Process{
+			Name:    "wait",
+			Command: command,
+			Args:    args,
+			Prefix:  "wait",
+
+			Color:      tpColour,
+			DisplayPid: true,
+			Delay:      startDelay,
+			Status:     runner.ExitStatusRunning,
+			Silent:     true,
+			// These must be set by the config file not the process
+			ShowTimestamp:    false,
+			SeperateNewLines: false,
+		},
+		ProcessExitContext: runner.ProcessExitContext{
+			RestartAttempts: 0,
+			OnFailure:       tpExit,
+			OnComplete:      tpExit,
+			RestartDelay:    tpDelays,
+			TimeoutOnExit:   tpDelays,
+		},
 	}
 }
 
 // Creates a process with non-default values
-func createRestartProcess(command string, args []string, restartAttempts int, restartDelay int) runner.Process {
+func createRestartProcess(command string, args []string, restartAttempts int, restartDelay int) runner.RunTask {
 	var tpExit runner.ExitCommand = "restart"
 	var tpColour runner.ColourCode = "yellow"
 	var tpDelays int = 0
 
-	return runner.Process{
-		Name:            "restart",
-		Command:         command,
-		Args:            args,
-		Prefix:          "restart",
-		RestartAttempts: restartAttempts,
-		Color:           tpColour,
-		OnFailure:       tpExit,
-		OnComplete:      tpExit,
-		DisplayPid:      true,
-		Delay:           tpDelays,
-		TimeoutOnExit:   tpDelays,
-		RestartDelay:    restartDelay,
-		Status:          runner.ExitStatusRunning,
-		Silent:          true,
-		// These must be set by the config file not the process
-		ShowTimestamp:    true,
-		SeperateNewLines: true,
+	return runner.RunTask{
+		Process: runner.Process{
+			Name:       "restart",
+			Command:    command,
+			Args:       args,
+			Prefix:     "restart",
+			Color:      tpColour,
+			DisplayPid: true,
+			Delay:      tpDelays,
+			Status:     runner.ExitStatusRunning,
+			Silent:     true,
+			// These must be set by the config file not the process
+			ShowTimestamp:    true,
+			SeperateNewLines: true,
+		},
+		ProcessExitContext: runner.ProcessExitContext{
+			RestartAttempts: restartAttempts,
+			OnFailure:       tpExit,
+			OnComplete:      tpExit,
+			RestartDelay:    restartDelay,
+			TimeoutOnExit:   tpDelays,
+		},
 	}
 }
 
 // Creates a process with non-default values
-func createBuzzkillProcess(command string, args []string) runner.Process {
+func createBuzzkillProcess(command string, args []string) runner.RunTask {
 	var tpExit runner.ExitCommand = "buzzkill"
 	var tpColour runner.ColourCode = "green"
 	var tpDelays int = 0
 
-	return runner.Process{
-		Name:            "buzzkill",
-		Command:         command,
-		Args:            args,
-		Prefix:          "buzzkill",
-		RestartAttempts: 0,
-		Color:           tpColour,
-		OnFailure:       tpExit,
-		OnComplete:      tpExit,
-		DisplayPid:      true,
-		Delay:           tpDelays,
-		TimeoutOnExit:   tpDelays,
-		RestartDelay:    tpDelays,
-		Status:          runner.ExitStatusRunning,
-		Silent:          true,
-		// These must be set by the config file not the process
-		ShowTimestamp:    false,
-		SeperateNewLines: false,
+	return runner.RunTask{
+		Process: runner.Process{
+			Name:       "buzzkill",
+			Command:    command,
+			Args:       args,
+			Prefix:     "buzzkill",
+			Color:      tpColour,
+			DisplayPid: true,
+			Delay:      tpDelays,
+			Status:     runner.ExitStatusRunning,
+			Silent:     true,
+			// These must be set by the config file not the process
+			ShowTimestamp:    false,
+			SeperateNewLines: false,
+		},
+		ProcessExitContext: runner.ProcessExitContext{
+			RestartAttempts: 0,
+			OnFailure:       tpExit,
+			OnComplete:      tpExit,
+			RestartDelay:    tpDelays,
+			TimeoutOnExit:   tpDelays,
+		},
 	}
 }
 
@@ -97,7 +110,7 @@ func TestInternalBuzzkill(t *testing.T) {
 	// Test that each one works by creating a file with the name of the process
 	// delay := 100 //ms
 	cmdSettings := testHelpers.CreateFailCmdSettings()
-	buzkillProcess := createBuzzkillProcess(cmdSettings.Cmd, cmdSettings.Args)
+	buzkillTask := createBuzzkillProcess(cmdSettings.Cmd, cmdSettings.Args)
 
 	wg.Add(1)
 
@@ -112,8 +125,7 @@ func TestInternalBuzzkill(t *testing.T) {
 		StdIn:    make(chan string),
 	}
 
-	context := runner.CreateContext(
-		&buzkillProcess,
+	context := buzkillTask.CreateContext(
 		&wg,
 		mainChannel,
 		taskChannel,
@@ -148,7 +160,7 @@ func TestExternalBuzzkill(t *testing.T) {
 		t.Fatalf("delay duration cannot be larger than sleepDuration/2, delay=%d ms, sleep=%d s", delay, sleepDuration)
 	}
 	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
-	buzkillProcess := createBuzzkillProcess(cmdSettings.Cmd, cmdSettings.Args)
+	buzkillTask := createBuzzkillProcess(cmdSettings.Cmd, cmdSettings.Args)
 
 	wg.Add(1)
 
@@ -163,8 +175,7 @@ func TestExternalBuzzkill(t *testing.T) {
 		StdIn:    make(chan string),
 	}
 
-	context := runner.CreateContext(
-		&buzkillProcess,
+	context := buzkillTask.CreateContext(
 		&wg,
 		mainChannel,
 		taskChannel,
@@ -177,7 +188,7 @@ func TestExternalBuzzkill(t *testing.T) {
 	if time.Since(t1) > time.Duration(sleepDuration)*time.Second {
 		t.Fatal("Process ran to completion. Context did not exit on buzzkill")
 	}
-	if context.Process.Status == runner.ExitStatusRunning {
+	if context.Task.Status == runner.ExitStatusRunning {
 		t.Fatal("Context run status is still running. Context did not exit on buzzkill")
 	}
 }
@@ -194,7 +205,7 @@ func TestWait(t *testing.T) {
 		t.Fatalf("delay duration cannot be larger than sleepDuration/2, delay=%d ms, sleep=%d s", delay, sleepDuration)
 	}
 	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
-	complete := createWaitProcess(cmdSettings.Cmd, cmdSettings.Args, 0)
+	completeTask := createWaitProcess(cmdSettings.Cmd, cmdSettings.Args, 0)
 
 	wg.Add(1)
 
@@ -209,8 +220,7 @@ func TestWait(t *testing.T) {
 		StdIn:    make(chan string),
 	}
 
-	context := runner.CreateContext(
-		&complete,
+	context := completeTask.CreateContext(
 		&wg,
 		mainChannel,
 		taskChannel,
@@ -234,7 +244,7 @@ func TestWait(t *testing.T) {
 		t.Fatal("Context recieved buzzkill")
 
 	}
-	if context.Process.Status == runner.ExitStatusRunning {
+	if context.Task.Status == runner.ExitStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }
@@ -248,8 +258,8 @@ func TestRestart(t *testing.T) {
 	restartAttempts := 3
 
 	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
-	command := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, 0)
-	command.Silent = true
+	sleepTask := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, 0)
+	sleepTask.Silent = true
 	wg.Add(1)
 
 	// Create the task output channels
@@ -263,8 +273,7 @@ func TestRestart(t *testing.T) {
 		StdIn:    make(chan string),
 	}
 
-	context := runner.CreateContext(
-		&command,
+	context := sleepTask.CreateContext(
 		&wg,
 		mainChannel,
 		taskChannel,
@@ -292,7 +301,7 @@ func TestRestart(t *testing.T) {
 		t.Fatal("Context recieved buzzkill")
 
 	}
-	if context.Process.Status == runner.ExitStatusRunning {
+	if context.Task.Status == runner.ExitStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }
@@ -306,9 +315,9 @@ func TestRestartWithDelays(t *testing.T) {
 	restartAttempts := 3
 
 	cmdSettings := testHelpers.CreateFailCmdSettings()
-	command := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, restartDelay)
-	command.Prefix = "restart-delay"
-	command.Silent = true
+	restartTask := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, restartDelay)
+	restartTask.Prefix = "restart-delay"
+	restartTask.Silent = true
 
 	wg.Add(1)
 
@@ -323,8 +332,7 @@ func TestRestartWithDelays(t *testing.T) {
 		StdIn:    make(chan string),
 	}
 
-	context := runner.CreateContext(
-		&command,
+	context := restartTask.CreateContext(
 		&wg,
 		mainChannel,
 		taskChannel,
@@ -352,7 +360,7 @@ func TestRestartWithDelays(t *testing.T) {
 		t.Fatal("Context recieved buzzkill")
 
 	}
-	if context.Process.Status == runner.ExitStatusRunning {
+	if context.Task.Status == runner.ExitStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }
@@ -369,8 +377,8 @@ func TestStartDelay(t *testing.T) {
 		t.Fatalf("delay duration cannot be larger than sleepDuration/2, delay=%d ms, sleep=%d s", delay, sleepDuration)
 	}
 	cmdSettings := testHelpers.CreateSleepCmdSettings(0)
-	command := createWaitProcess(cmdSettings.Cmd, cmdSettings.Args, 0)
-	command.Delay = sleepDuration
+	waitTask := createWaitProcess(cmdSettings.Cmd, cmdSettings.Args, 0)
+	waitTask.Delay = sleepDuration
 
 	wg.Add(1)
 
@@ -385,8 +393,7 @@ func TestStartDelay(t *testing.T) {
 		StdIn:    make(chan string),
 	}
 
-	context := runner.CreateContext(
-		&command,
+	context := waitTask.CreateContext(
 		&wg,
 		mainChannel,
 		taskChannel,
@@ -409,7 +416,7 @@ func TestStartDelay(t *testing.T) {
 	if buzzkilled {
 		t.Fatal("Context recieved buzzkill")
 	}
-	if context.Process.Status == runner.ExitStatusRunning {
+	if context.Task.Status == runner.ExitStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }
