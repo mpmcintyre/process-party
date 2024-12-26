@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/fatih/color"
-	runner "github.com/mpmcintyre/process-party/internal"
+	pp "github.com/mpmcintyre/process-party/internal"
 	"github.com/rodaine/table"
 	"github.com/spf13/cobra"
 )
@@ -38,7 +38,7 @@ using ctrl+c or input "exit" into the command line.
 		}
 		fmt.Println("-------------------- Process Party --------------------")
 		// Create the configuration to store settings and process configurations
-		config := runner.CreateConfig()
+		config := pp.CreateConfig()
 
 		// Parse the input file if the user passes in an argument
 		if len(args) != 0 {
@@ -58,22 +58,22 @@ using ctrl+c or input "exit" into the command line.
 		wg.Add(len(config.Processes))
 
 		// Create context and channel groups
-		contexts := []runner.RunTaskContext{}
-		mainChannels := []runner.MainChannelsOut{}
+		contexts := []pp.RunTaskContext{}
+		mainChannels := []pp.MainChannelsOut{}
 		// Keep track of number of running procesess to exit main app
 		runningProcessCount := len(config.Processes)
 
 		for index, process := range config.Processes {
 
 			// Create the task output channels
-			taskChannel := runner.TaskChannelsOut{
+			taskChannel := pp.TaskChannelsOut{
 				Buzzkill:   make(chan bool),
 				ExitStatus: make(chan int),
 			}
 
 			// Create the task input channels
 			mainChannels = append(mainChannels,
-				runner.MainChannelsOut{
+				pp.MainChannelsOut{
 					Buzzkill: make(chan bool),
 					StdIn:    make(chan string),
 				})
@@ -142,7 +142,7 @@ using ctrl+c or input "exit" into the command line.
 					}
 					input := s[1:]
 					for _, context := range contexts {
-						if context.Task.Status == runner.ExitStatusRunning {
+						if context.Task.Status == pp.ExitStatusRunning {
 							context.MainChannelsOut.StdIn <- strings.Join(input, "")
 						}
 					}
@@ -164,7 +164,7 @@ using ctrl+c or input "exit" into the command line.
 					fmt.Println("Exiting all")
 
 					for _, context := range contexts {
-						if context.Task.Status == runner.ExitStatusRunning {
+						if context.Task.Status == pp.ExitStatusRunning {
 							context.MainChannelsOut.Buzzkill <- true
 						}
 					}
@@ -181,7 +181,7 @@ using ctrl+c or input "exit" into the command line.
 					for _, context := range contexts {
 						if context.Task.Name == target || context.Task.Prefix == target {
 							found = true
-							if context.Task.Status == runner.ExitStatusRunning {
+							if context.Task.Status == pp.ExitStatusRunning {
 								context.MainChannelsOut.StdIn <- strings.Join(input, "")
 							} else {
 								fmt.Printf("The %s command has exited, cannot write to process\n", target)

@@ -10,28 +10,28 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	runner "github.com/mpmcintyre/process-party/internal"
+	pp "github.com/mpmcintyre/process-party/internal"
 	"gopkg.in/yaml.v3"
 )
 
-var tpExit runner.ExitCommand = "wait"
-var tpColour runner.ColourCode = "green"
+var tpExit pp.ExitCommand = "wait"
+var tpColour pp.ColourCode = "green"
 var tpDelays int = 1
 var tpPID string = "123"
 var tpRestartAttempts int = 1
 var startStream string = "start"
 
 // Creates a process with non-default values
-func createRunTask(increment int, nameStamp string) runner.RunTask {
-	return runner.RunTask{
-		ProcessExitContext: runner.ProcessExitContext{
+func createRunTask(increment int, nameStamp string) pp.RunTask {
+	return pp.RunTask{
+		ProcessExitContext: pp.ProcessExitContext{
 			OnFailure:       tpExit,
 			OnComplete:      tpExit,
 			RestartAttempts: tpRestartAttempts,
 			RestartDelay:    tpDelays,
 			TimeoutOnExit:   tpDelays,
 		},
-		Process: runner.Process{
+		Process: pp.Process{
 			Name:        nameStamp + fmt.Sprintf("%d", increment),
 			Command:     nameStamp + fmt.Sprintf("%d", increment),
 			Args:        []string{nameStamp + fmt.Sprintf("%d", increment)},
@@ -40,7 +40,7 @@ func createRunTask(increment int, nameStamp string) runner.RunTask {
 			DisplayPid:  true,
 			Delay:       tpDelays,
 			StartStream: startStream,
-			Status:      runner.ExitStatusRunning,
+			Status:      pp.ExitStatusRunning,
 			Pid:         tpPID,
 			Silent:      true,
 			// These must be set by the config file not the process
@@ -51,8 +51,8 @@ func createRunTask(increment int, nameStamp string) runner.RunTask {
 }
 
 // Returns true if a default value is found
-func containsDefaultValues(process runner.RunTask) bool {
-	dp := runner.RunTask{}
+func containsDefaultValues(process pp.RunTask) bool {
+	dp := pp.RunTask{}
 	dpString, err := json.Marshal(dp)
 	if err != nil {
 		fmt.Println("Error marshaling JSON:", err)
@@ -113,9 +113,9 @@ func createNonDefaultConfig(numberOfProcesses int, nameStamp string, tempDir str
 		os.MkdirAll(tempDir, fs.ModeDir)
 	}
 
-	defaultProcess := runner.Process{}
+	defaultProcess := pp.Process{}
 
-	config := runner.CreateConfig()
+	config := pp.CreateConfig()
 
 	if len(config.Processes) > 0 {
 		return errors.New("non empty processes in config")
@@ -183,10 +183,10 @@ func TestConfigParsing(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	jsonConfig := runner.CreateConfig()
-	ymlConfig := runner.CreateConfig()
-	yamlConfig := runner.CreateConfig()
-	tomlConfig := runner.CreateConfig()
+	jsonConfig := pp.CreateConfig()
+	ymlConfig := pp.CreateConfig()
+	yamlConfig := pp.CreateConfig()
+	tomlConfig := pp.CreateConfig()
 
 	jsonConfig.ParseFile(tempDir + testName + ".json")
 	ymlConfig.ParseFile(tempDir + testName + ".yml")
