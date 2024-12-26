@@ -4,7 +4,9 @@ package pp
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"time"
 )
 
@@ -51,7 +53,20 @@ func (c *RunTaskContext) handleCloseConditions(writer customWriter, exitHandler 
 func (c *RunTaskContext) Run() {
 
 	// Create command
-	c.setupCmd()
+	c.cmd = exec.Command(c.process.Command, c.process.Args...)
+	c.cmd.Env = os.Environ() // Set the full environment, including PATH
+	// Create IO
+	r, w := io.Pipe()
+	c.readPipe = r
+	c.writePipe = w
+	// Write into the command
+	c.infoWriter = &customWriter{w: os.Stdout, severity: "info", process: c.process}   // Write info out
+	c.errorWriter = &customWriter{w: os.Stdout, severity: "error", process: c.process} // Write errors out
+	// Set IO
+	c.cmd.Stdout = c.infoWriter
+	c.cmd.Stderr = c.errorWriter
+	c.cmd.Stdin = r
+
 	displayedPid := false // Simple bool to show boolean at the start of the process
 	c.Task.Status = ExitStatusRunning
 

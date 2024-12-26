@@ -24,13 +24,12 @@ var startStream string = "start"
 // Creates a process with non-default values
 func createRunTask(increment int, nameStamp string) pp.RunTask {
 	return pp.RunTask{
-		ProcessExitContext: pp.ProcessExitContext{
-			OnFailure:       tpExit,
-			OnComplete:      tpExit,
-			RestartAttempts: tpRestartAttempts,
-			RestartDelay:    tpDelays,
-			TimeoutOnExit:   tpDelays,
-		},
+		OnFailure:       tpExit,
+		OnComplete:      tpExit,
+		RestartAttempts: tpRestartAttempts,
+		RestartDelay:    tpDelays,
+		TimeoutOnExit:   tpDelays,
+		Delay:           tpDelays,
 		Process: pp.Process{
 			Name:        nameStamp + fmt.Sprintf("%d", increment),
 			Command:     nameStamp + fmt.Sprintf("%d", increment),
@@ -38,7 +37,6 @@ func createRunTask(increment int, nameStamp string) pp.RunTask {
 			Prefix:      nameStamp + fmt.Sprintf("%d", increment),
 			Color:       tpColour,
 			DisplayPid:  true,
-			Delay:       tpDelays,
 			StartStream: startStream,
 			Status:      pp.ExitStatusRunning,
 			Pid:         tpPID,

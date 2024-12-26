@@ -25,7 +25,6 @@ type (
 		Color            ColourCode `toml:"color" json:"color" yaml:"color"`
 		SeperateNewLines bool       `toml:"seperate_new_lines" json:"seperate_new_lines" yaml:"seperate_new_lines"`
 		DisplayPid       bool       `toml:"show_pid" json:"show_pid" yaml:"show_pid"`
-		Delay            int        `toml:"delay" json:"delay" yaml:"delay"`
 		StartStream      string     `toml:"stdin_on_start" json:"stdin_on_start" yaml:"stdin_on_start"`
 		Silent           bool       `toml:"silent" json:"silent" yaml:"silent"`
 		ShowTimestamp    bool
@@ -33,7 +32,9 @@ type (
 		Pid              string
 	}
 
-	ProcessExitContext struct {
+	RunTask struct {
+		Process
+		Delay           int         `toml:"delay" json:"delay" yaml:"delay"`
 		RestartDelay    int         `toml:"restart_delay" json:"restart_delay" yaml:"restart_delay"`
 		OnFailure       ExitCommand `toml:"on_failure" json:"on_failure" yaml:"on_failure"`
 		OnComplete      ExitCommand `toml:"on_complete,omitempty" json:"on_complete,omitempty" yaml:"on_complete,omitempty"`
@@ -41,19 +42,10 @@ type (
 		TimeoutOnExit   int         `toml:"timeout_on_exit" json:"timeout_on_exit" yaml:"timeout_on_exit"`
 	}
 
-	WatcherContext struct {
+	WatchTask struct {
+		Process
 		Watch  []string `toml:"watch" json:"watch" yaml:"watch"`
 		Ingore []string `toml:"ignore" json:"ignore" yaml:"ignore"`
-	}
-
-	RunTask struct {
-		ProcessExitContext
-		Process
-	}
-
-	WatchTask struct {
-		WatcherContext
-		Process
 	}
 
 	Config struct {
@@ -159,10 +151,8 @@ func (c *Config) ParseInlineCmd(cmd string) error {
 	}
 
 	p := RunTask{
-		ProcessExitContext: ProcessExitContext{
-			OnFailure:  ExitCommandBuzzkill,
-			OnComplete: ExitCommandWait,
-		},
+		OnFailure:  ExitCommandBuzzkill,
+		OnComplete: ExitCommandWait,
 		Process: Process{
 			Command: command,
 			Args:    args,

@@ -24,20 +24,18 @@ func createWaitProcess(command string, args []string, startDelay int) pp.RunTask
 
 			Color:      tpColour,
 			DisplayPid: true,
-			Delay:      startDelay,
 			Status:     pp.ExitStatusRunning,
 			Silent:     true,
 			// These must be set by the config file not the process
 			ShowTimestamp:    false,
 			SeperateNewLines: false,
 		},
-		ProcessExitContext: pp.ProcessExitContext{
-			RestartAttempts: 0,
-			OnFailure:       tpExit,
-			OnComplete:      tpExit,
-			RestartDelay:    tpDelays,
-			TimeoutOnExit:   tpDelays,
-		},
+		Delay:           startDelay,
+		RestartAttempts: 0,
+		OnFailure:       tpExit,
+		OnComplete:      tpExit,
+		RestartDelay:    tpDelays,
+		TimeoutOnExit:   tpDelays,
 	}
 }
 
@@ -55,20 +53,18 @@ func createRestartProcess(command string, args []string, restartAttempts int, re
 			Prefix:     "restart",
 			Color:      tpColour,
 			DisplayPid: true,
-			Delay:      tpDelays,
 			Status:     pp.ExitStatusRunning,
 			Silent:     true,
 			// These must be set by the config file not the process
 			ShowTimestamp:    true,
 			SeperateNewLines: true,
 		},
-		ProcessExitContext: pp.ProcessExitContext{
-			RestartAttempts: restartAttempts,
-			OnFailure:       tpExit,
-			OnComplete:      tpExit,
-			RestartDelay:    restartDelay,
-			TimeoutOnExit:   tpDelays,
-		},
+		Delay:           tpDelays,
+		RestartAttempts: restartAttempts,
+		OnFailure:       tpExit,
+		OnComplete:      tpExit,
+		RestartDelay:    restartDelay,
+		TimeoutOnExit:   tpDelays,
 	}
 }
 
@@ -86,20 +82,18 @@ func createBuzzkillProcess(command string, args []string) pp.RunTask {
 			Prefix:     "buzzkill",
 			Color:      tpColour,
 			DisplayPid: true,
-			Delay:      tpDelays,
 			Status:     pp.ExitStatusRunning,
 			Silent:     true,
 			// These must be set by the config file not the process
 			ShowTimestamp:    false,
 			SeperateNewLines: false,
 		},
-		ProcessExitContext: pp.ProcessExitContext{
-			RestartAttempts: 0,
-			OnFailure:       tpExit,
-			OnComplete:      tpExit,
-			RestartDelay:    tpDelays,
-			TimeoutOnExit:   tpDelays,
-		},
+		Delay:           tpDelays,
+		RestartAttempts: 0,
+		OnFailure:       tpExit,
+		OnComplete:      tpExit,
+		RestartDelay:    tpDelays,
+		TimeoutOnExit:   tpDelays,
 	}
 }
 

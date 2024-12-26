@@ -2,7 +2,6 @@ package pp
 
 import (
 	"io"
-	"os"
 	"os/exec"
 	"sync"
 )
@@ -66,21 +65,4 @@ func (p *WatchTask) CreateContext(wg *sync.WaitGroup, mc MainChannelsOut, tc Tas
 			process: &p.Process,
 		},
 	}
-}
-
-// Create the private variables for the command to start running, MUST BE CALLED INSIDE context.Run()
-func (c *BaseContext) setupCmd() {
-	c.cmd = exec.Command(c.process.Command, c.process.Args...)
-	c.cmd.Env = os.Environ() // Set the full environment, including PATH
-	// Create IO
-	r, w := io.Pipe()
-	c.readPipe = r
-	c.writePipe = w
-	// Write into the command
-	c.infoWriter = &customWriter{w: os.Stdout, severity: "info", process: c.process}   // Write info out
-	c.errorWriter = &customWriter{w: os.Stdout, severity: "error", process: c.process} // Write errors out
-	// Set IO
-	c.cmd.Stdout = c.infoWriter
-	c.cmd.Stderr = c.errorWriter
-	c.cmd.Stdin = r
 }
