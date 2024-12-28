@@ -14,8 +14,9 @@ import (
 
 type (
 	ExitCommand string
-	ColourCode  string
 	ExitStatus  int
+	ProcessType int
+	ColourCode  string
 
 	Process struct {
 		Name             string     `toml:"name" json:"name" yaml:"name"`
@@ -30,6 +31,7 @@ type (
 		ShowTimestamp    bool
 		Status           ExitStatus
 		Pid              string
+		Type             ProcessType
 	}
 
 	RunTask struct {
@@ -50,7 +52,7 @@ type (
 
 	Config struct {
 		Processes        []RunTask   `toml:"processes" json:"processes" yaml:"processes"`
-		WatchTasks       []WatchTask `toml:"watchers" json:"watchers" yaml:"watchers"`
+		WatchTasks       []WatchTask `toml:"watch" json:"watch" yaml:"watch"`
 		SeperateNewLines bool        `toml:"indicate_every_line" json:"indicate_every_line" yaml:"indicate_every_line"`
 		ShowTimestamp    bool        `toml:"show_timestamp" json:"show_timestamp" yaml:"show_timestamp"`
 		filePresent      bool
@@ -69,6 +71,13 @@ const (
 	ExitStatusExited
 	ExitStatusFailed
 	ExitStatusRestarting
+	ExitStatusWatching
+)
+
+const (
+	ProcessTypeUnknown ProcessType = iota
+	ProcessTypeRunner
+	ProcessTypeWatcher
 )
 
 const (
@@ -198,39 +207,50 @@ func (c *Config) ParseFile(path string) error {
 		return errors.New("unsupported filetype provided")
 	}
 
-	fmt.Printf("Found %d processes in %s\nProcesses:\n", len(c.Processes), path)
-	fmt.Print("[")
+	color.HiGreen("Found %d processes in %s", len(c.Processes), path)
+	color.HiBlack("Process tasks:")
+	outputString := "["
+	// color.HiBlack("[")
 	for i := range c.Processes {
 		output := fmt.Sprintf("%#v", c.Processes[i].Name)
 		if c.Processes[i].Silent {
 			output = fmt.Sprintf("%#v (silent)", c.Processes[i].Name)
 		}
 		if i == len(c.Processes)-1 {
-			fmt.Printf("%s", output)
+			outputString += output
+			// color.HiBlack("%s", output)
 		} else {
-			fmt.Printf("%s, ", output)
+			outputString += fmt.Sprintf("%s, ", output)
+			// color.HiBlack("%s, ", output)
 		}
+		// Set values
 		c.Processes[i].SeperateNewLines = c.SeperateNewLines
 		c.Processes[i].ShowTimestamp = c.ShowTimestamp
+		c.Processes[i].Type = ProcessTypeRunner
 	}
-	fmt.Printf("]\n\n")
+	color.HiBlack("%s]\n\n", outputString)
 
-	fmt.Printf("Found %d watchers in %s\nWatcher tasks:\n", len(c.Processes), path)
-	fmt.Print("[")
-	for i := range c.Processes {
-		output := fmt.Sprintf("%#v", c.Processes[i].Name)
-		if c.Processes[i].Silent {
-			output = fmt.Sprintf("%#v (silent)", c.Processes[i].Name)
+	color.HiGreen("Found %d watchers in %s", len(c.WatchTasks), path)
+	color.HiBlack("Watcher tasks:")
+	outputString = "["
+	// color.HiBlack("[")
+	for i := range c.WatchTasks {
+		output := fmt.Sprintf("%#v", c.WatchTasks[i].Name)
+		if c.WatchTasks[i].Silent {
+			output = fmt.Sprintf("%#v (silent)", c.WatchTasks[i].Name)
 		}
-		if i == len(c.Processes)-1 {
-			fmt.Printf("%s", output)
+		if i == len(c.WatchTasks)-1 {
+			outputString += output
+			// color.HiBlack("%s", output)
 		} else {
-			fmt.Printf("%s, ", output)
+			outputString += fmt.Sprintf("%s, ", output)
+			// color.HiBlack("%s, ", output)
 		}
-		c.Processes[i].SeperateNewLines = c.SeperateNewLines
-		c.Processes[i].ShowTimestamp = c.ShowTimestamp
+		c.WatchTasks[i].SeperateNewLines = c.SeperateNewLines
+		c.WatchTasks[i].ShowTimestamp = c.ShowTimestamp
+		c.Processes[i].Type = ProcessTypeWatcher
 	}
-	fmt.Printf("]\n\n")
+	color.HiBlack("%s]\n\n", outputString)
 
 	c.filePresent = true
 

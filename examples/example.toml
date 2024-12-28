@@ -24,6 +24,18 @@ on_complete = "restart"
 restart_attempts = 3
 silent = false
 
+[[watch]]
+name = "example fail"
+command = "go"
+show_pid = false
+args = ["run", "main.go"]
+prefix = "BACK"
+color = "blue"
+on_failure = "restart"
+on_complete = "restart"
+restart_attempts = 3
+silent = false
+
 # [[processes]]
 # name = "example fail2"
 # command = "go"

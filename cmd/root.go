@@ -36,7 +36,9 @@ using ctrl+c or input "exit" into the command line.
 		if len(args) == 0 && len(execCommands) == 0 {
 			return errors.New("please provide either a directory or execution commands to run in parallel")
 		}
-		fmt.Println("-------------------- Process Party --------------------")
+
+		// Print logo
+		color.HiGreen("\n   ___                             ___           __      \n  / _ \\_______  _______ ___ ___   / _ \\___ _____/ /___ __\n / ___/ __/ _ \\/ __/ -_|_-<(_-<  / ___/ _ `/ __/ __/ // /\n/_/  /_/  \\___/\\__/\\__/___/___/ /_/   \\_,_/_/  \\__/\\_, / \n                                                  /___/  ")
 		// Create the configuration to store settings and process configurations
 		config := pp.CreateConfig()
 
@@ -53,67 +55,12 @@ using ctrl+c or input "exit" into the command line.
 			config.ParseInlineCmd(cmd)
 		}
 
-		// Create wait group for each spawned process
 		var wg sync.WaitGroup
 		wg.Add(len(config.Processes))
+		// Create wait group for each spawned process
+		runContexts := config.GenerateRunTaskContexts(&wg)
 
-		// Create context and channel groups
-		contexts := []pp.RunTaskContext{}
-		mainChannels := []pp.MainChannelsOut{}
-		// Keep track of number of running procesess to exit main app
-		runningProcessCount := len(config.Processes)
-
-		for index, process := range config.Processes {
-
-			// Create the task output channels
-			taskChannel := pp.TaskChannelsOut{
-				Buzzkill:   make(chan bool),
-				ExitStatus: make(chan int),
-			}
-
-			// Create the task input channels
-			mainChannels = append(mainChannels,
-				pp.MainChannelsOut{
-					Buzzkill: make(chan bool),
-					StdIn:    make(chan string),
-				})
-
-			// Create context
-			contexts = append(contexts, process.CreateContext(
-				&wg,
-				mainChannels[index],
-				taskChannel,
-			))
-
-			// Start listening to the threads channels fo multi-channel communcation
-			go func() {
-			monitorLoop:
-				for {
-					select {
-					case <-taskChannel.Buzzkill:
-						for i := range len(config.Processes) {
-							// Send to all other channels (not including this one)
-							if i != index {
-								mainChannels[i].Buzzkill <- true
-							}
-						}
-						break monitorLoop
-					case <-taskChannel.ExitStatus:
-						runningProcessCount--
-						// if runningProcessCount <= 0 {
-						// 	fmt.Println("All processes exited")
-						// 	break monitorLoop
-						// }
-					}
-				}
-
-			}()
-		}
-		// Start the task
-		for _, context := range contexts {
-			go context.Run()
-		}
-
+		// Start an input stream monitor
 		go func() {
 			reader := bufio.NewReader(os.Stdin)
 			fmt.Println("Input is active - std in to commands using [all] or specific command using [<cmd prefix>]")
@@ -141,7 +88,7 @@ using ctrl+c or input "exit" into the command line.
 						continue
 					}
 					input := s[1:]
-					for _, context := range contexts {
+					for _, context := range runContexts {
 						if context.Task.Status == pp.ExitStatusRunning {
 							context.MainChannelsOut.StdIn <- strings.Join(input, "")
 						}
@@ -149,21 +96,39 @@ using ctrl+c or input "exit" into the command line.
 
 					// Broadcast to all processes
 				case "status":
-					fmt.Println()
-					// Print status of every command
-					headerFmt := color.New(color.FgGreen, color.Underline).SprintfFunc()
-					columnFmt := color.New(color.FgYellow).SprintfFunc()
-					tbl := table.New("Index", "Name", "Prefix", "Command", "Status")
-					tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
-					for index, context := range contexts {
-						tbl.AddRow(index, context.Task.Name, context.Task.Prefix, context.Task.Command, context.Task.Process.GetStatusAsStr())
+					// Print runcontexts status
+					if len(runContexts) > 0 {
+						fmt.Println()
+						// Print status of every command
+						headerFmt := color.New(color.FgGreen, color.Underline).SprintfFunc()
+						columnFmt := color.New(color.FgYellow).SprintfFunc()
+						tbl := table.New("Index", "Name", "Prefix", "Command", "Status")
+						tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
+						for index, context := range runContexts {
+							tbl.AddRow(index, context.Task.Name, context.Task.Prefix, context.Task.Command, context.Task.Process.GetStatusAsStr())
+						}
+						tbl.Print()
+						fmt.Println()
 					}
-					tbl.Print()
-					fmt.Println()
+					// Print watchContexts status
+					// if len(watchContexts) > 0 {
+					// 	fmt.Println()
+					// 	// Print status of every command
+					// 	headerFmt := color.New(color.FgGreen, color.Underline).SprintfFunc()
+					// 	columnFmt := color.New(color.FgYellow).SprintfFunc()
+					// 	tbl := table.New("Index", "Name", "Prefix", "Command", "Status")
+					// 	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
+					// 	for index, context := range runContexts {
+					// 		tbl.AddRow(index, context.Task.Name, context.Task.Prefix, context.Task.Command, context.Task.Process.GetStatusAsStr())
+					// 	}
+					// 	tbl.Print()
+					// 	fmt.Println()
+					// }
+
 				case "exit":
 					fmt.Println("Exiting all")
 
-					for _, context := range contexts {
+					for _, context := range runContexts {
 						if context.Task.Status == pp.ExitStatusRunning {
 							context.MainChannelsOut.Buzzkill <- true
 						}
@@ -178,7 +143,7 @@ using ctrl+c or input "exit" into the command line.
 					}
 					found := false
 					input := s[1:]
-					for _, context := range contexts {
+					for _, context := range runContexts {
 						if context.Task.Name == target || context.Task.Prefix == target {
 							found = true
 							if context.Task.Status == pp.ExitStatusRunning {
@@ -194,6 +159,11 @@ using ctrl+c or input "exit" into the command line.
 				}
 			}
 		}()
+
+		// Start the tasks
+		for _, context := range runContexts {
+			go context.Run()
+		}
 
 		wg.Wait()
 

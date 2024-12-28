@@ -44,6 +44,7 @@ func createRunTask(increment int, nameStamp string) pp.RunTask {
 			// These must be set by the config file not the process
 			ShowTimestamp:    false,
 			SeperateNewLines: false,
+			Type:             pp.ProcessTypeRunner,
 		},
 	}
 }
