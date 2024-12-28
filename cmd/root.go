@@ -59,6 +59,7 @@ using ctrl+c or input "exit" into the command line.
 		wg.Add(len(config.Processes))
 		// Create wait group for each spawned process
 		runContexts := config.GenerateRunTaskContexts(&wg)
+		watchContexts := config.GenerateWatchTaskContexts()
 
 		// Start an input stream monitor
 		go func() {
@@ -164,7 +165,9 @@ using ctrl+c or input "exit" into the command line.
 		for _, context := range runContexts {
 			go context.Run()
 		}
-
+		for _, context := range watchContexts {
+			context.Watch()
+		}
 		wg.Wait()
 
 		return nil

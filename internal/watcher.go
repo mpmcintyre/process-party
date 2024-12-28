@@ -55,13 +55,13 @@ func (c *WatchTaskContext) Watch() {
 		}
 	}
 
-	for _, item := range c.Task.Ingore {
-		err := watcher.Remove(item)
-		if err != nil {
-			c.errorWriter.Write([]byte("File/Directory does not exist"))
-			return
-		}
-	}
+	// for _, item := range c.Task.Ingore {
+	// 	err := watcher.Remove(item)
+	// 	if err != nil {
+	// 		c.errorWriter.Write([]byte("File/Directory does not exist"))
+	// 		return
+	// 	}
+	// }
 
 	// Start file watcher
 	go func() {
