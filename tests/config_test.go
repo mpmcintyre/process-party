@@ -22,35 +22,44 @@ var tpRestartAttempts int = 1
 var startStream string = "start"
 
 // Creates a process with non-default values
-func createRunTask(increment int, nameStamp string) pp.RunTask {
-	return pp.RunTask{
+func createRunTask(increment int, nameStamp string) pp.Process {
+	return pp.Process{
 		OnFailure:       tpExit,
 		OnComplete:      tpExit,
 		RestartAttempts: tpRestartAttempts,
 		RestartDelay:    tpDelays,
 		TimeoutOnExit:   tpDelays,
 		Delay:           tpDelays,
-		Process: pp.Process{
-			Name:        nameStamp + fmt.Sprintf("%d", increment),
-			Command:     nameStamp + fmt.Sprintf("%d", increment),
-			Args:        []string{nameStamp + fmt.Sprintf("%d", increment)},
-			Prefix:      nameStamp + fmt.Sprintf("%d", increment),
-			Color:       tpColour,
-			DisplayPid:  true,
-			StartStream: startStream,
-			Status:      pp.ExitStatusRunning,
-			Pid:         tpPID,
-			Silent:      true,
-			// These must be set by the config file not the process
-			ShowTimestamp:    false,
-			SeperateNewLines: false,
-			Type:             pp.ProcessTypeRunner,
+		Name:            nameStamp + fmt.Sprintf("%d", increment),
+		Command:         nameStamp + fmt.Sprintf("%d", increment),
+		Args:            []string{nameStamp + fmt.Sprintf("%d", increment)},
+		Prefix:          nameStamp + fmt.Sprintf("%d", increment),
+		Color:           tpColour,
+		DisplayPid:      true,
+		StartStream:     startStream,
+		Status:          pp.ExitStatusRunning,
+		Pid:             tpPID,
+		Silent:          true,
+		// These must be set by the config file not the process
+		ShowTimestamp:    false,
+		SeperateNewLines: false,
+		Trigger: pp.Trigger{
+			FileSystem: pp.FileSystemTrigger{
+				Watch:  []string{"test"},
+				Ignore: []string{"test"},
+			},
+			Process: pp.ProcessTrigger{
+				OnStart:    []string{"test"},
+				OnEnd:      []string{"test"},
+				OnComplete: []string{"test"},
+				OnError:    []string{"test"},
+			},
 		},
 	}
 }
 
 // Returns true if a default value is found
-func containsDefaultValues(process pp.RunTask) bool {
+func containsDefaultValues(process pp.Process) bool {
 	dp := pp.RunTask{}
 	dpString, err := json.Marshal(dp)
 	if err != nil {

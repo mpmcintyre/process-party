@@ -18,7 +18,25 @@ type (
 	ProcessType int
 	ColourCode  string
 
+	FileSystemTrigger struct {
+		Watch  []string `toml:"watch" json:"watch" yaml:"watch"`    // List of directories/folders to watch
+		Ignore []string `toml:"ignore" json:"ignore" yaml:"ignore"` // List of directories/folders to ignore
+	}
+
+	ProcessTrigger struct {
+		OnStart    []string `toml:"on_start" json:"on_start" yaml:"on_start"`          // Process started successfully
+		OnEnd      []string `toml:"on_end" json:"on_end" yaml:"on_end"`                // Exit status does not matter
+		OnComplete []string `toml:"on_complete" json:"on_complete" yaml:"on_complete"` // On exit status 0
+		OnError    []string `toml:"on_error" json:"on_error" yaml:"on_error"`          // On exit status > 0
+	}
+
+	Trigger struct {
+		FileSystem FileSystemTrigger `toml:"filesystem" json:"filesystem" yaml:"filesystem"`
+		Process    ProcessTrigger    `toml:"process" json:"process" yaml:"process"`
+	}
+
 	Process struct {
+		// Info
 		Name             string     `toml:"name" json:"name" yaml:"name"`
 		Command          string     `toml:"command" json:"command" yaml:"command"`
 		Args             []string   `toml:"args" json:"args" yaml:"args"`
@@ -28,33 +46,35 @@ type (
 		DisplayPid       bool       `toml:"show_pid" json:"show_pid" yaml:"show_pid"`
 		StartStream      string     `toml:"stdin_on_start" json:"stdin_on_start" yaml:"stdin_on_start"`
 		Silent           bool       `toml:"silent" json:"silent" yaml:"silent"`
-		ShowTimestamp    bool
-		Status           ExitStatus
-		Pid              string
-		Type             ProcessType
-	}
-
-	RunTask struct {
-		Process
+		// Behaviour
+		Trigger         Trigger     `toml:"trigger" json:"trigger" yaml:"trigger"`
 		Delay           int         `toml:"delay" json:"delay" yaml:"delay"`
 		RestartDelay    int         `toml:"restart_delay" json:"restart_delay" yaml:"restart_delay"`
 		OnFailure       ExitCommand `toml:"on_failure" json:"on_failure" yaml:"on_failure"`
 		OnComplete      ExitCommand `toml:"on_complete,omitempty" json:"on_complete,omitempty" yaml:"on_complete,omitempty"`
 		RestartAttempts int         `toml:"restart_attempts" json:"restart_attempts" yaml:"restart_attempts"`
 		TimeoutOnExit   int         `toml:"timeout_on_exit" json:"timeout_on_exit" yaml:"timeout_on_exit"`
+		// Runtime
+		ShowTimestamp bool
+		Status        ExitStatus
+		Pid           string
+	}
+
+	RunTask struct {
+		Process
 	}
 
 	WatchTask struct {
 		Process
 		Watch  []string `toml:"watch" json:"watch" yaml:"watch"`
-		Ingore []string `toml:"ignore" json:"ignore" yaml:"ignore"`
+		Ignore []string `toml:"ignore" json:"ignore" yaml:"ignore"`
 	}
 
 	Config struct {
-		Processes        []RunTask   `toml:"processes" json:"processes" yaml:"processes"`
-		WatchTasks       []WatchTask `toml:"watch" json:"watch" yaml:"watch"`
-		SeperateNewLines bool        `toml:"indicate_every_line" json:"indicate_every_line" yaml:"indicate_every_line"`
-		ShowTimestamp    bool        `toml:"show_timestamp" json:"show_timestamp" yaml:"show_timestamp"`
+		Processes        []Process `toml:"processes" json:"processes" yaml:"processes"`
+		WatchTasks       []WatchTask
+		SeperateNewLines bool `toml:"indicate_every_line" json:"indicate_every_line" yaml:"indicate_every_line"`
+		ShowTimestamp    bool `toml:"show_timestamp" json:"show_timestamp" yaml:"show_timestamp"`
 		filePresent      bool
 	}
 )
@@ -127,7 +147,7 @@ func (c *Process) GetStatusAsStr() string {
 
 func CreateConfig() *Config {
 	return &Config{
-		Processes:        []RunTask{},
+		Processes:        []Process{},
 		WatchTasks:       []WatchTask{},
 		SeperateNewLines: true,
 		ShowTimestamp:    true,
@@ -159,14 +179,13 @@ func (c *Config) ParseInlineCmd(cmd string) error {
 		prefix = fmt.Sprintf("cmd%d", count)
 	}
 
-	p := RunTask{
+	p := Process{
 		OnFailure:  ExitCommandBuzzkill,
 		OnComplete: ExitCommandWait,
-		Process: Process{
-			Command: command,
-			Args:    args,
-			Prefix:  prefix,
-		}}
+		Command:    command,
+		Args:       args,
+		Prefix:     prefix,
+	}
 	c.Processes = append(c.Processes, p)
 
 	return nil
@@ -226,7 +245,6 @@ func (c *Config) ParseFile(path string) error {
 		// Set values
 		c.Processes[i].SeperateNewLines = c.SeperateNewLines
 		c.Processes[i].ShowTimestamp = c.ShowTimestamp
-		c.Processes[i].Type = ProcessTypeRunner
 	}
 	color.HiBlack("%s]\n\n", outputString)
 
@@ -248,7 +266,6 @@ func (c *Config) ParseFile(path string) error {
 		}
 		c.WatchTasks[i].SeperateNewLines = c.SeperateNewLines
 		c.WatchTasks[i].ShowTimestamp = c.ShowTimestamp
-		c.Processes[i].Type = ProcessTypeWatcher
 	}
 	color.HiBlack("%s]\n\n", outputString)
 

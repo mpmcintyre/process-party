@@ -20,55 +20,32 @@ type (
 	}
 
 	// All contexts of running processes will have these fields
-	BaseContext struct {
-		cmd         *exec.Cmd
-		infoWriter  *customWriter
-		errorWriter *customWriter
-		readPipe    *io.PipeReader
-		writePipe   *io.PipeWriter
-	}
-
-	// Watchers are fire and forget, but pipe all info to the main screen
-	WatchTaskContext struct {
-		Task *WatchTask
-		BaseContext
-	}
-
-	// Runners use channels to communicate to the main thread as well as use the wait group
-	RunTaskContext struct {
-		Task            *RunTask
+	RunContext struct {
+		cmd             *exec.Cmd
+		infoWriter      *customWriter
+		errorWriter     *customWriter
+		readPipe        *io.PipeReader
+		writePipe       *io.PipeWriter
+		Process         *Process
 		MainChannelsOut MainChannelsOut
 		TaskChannelsOut TaskChannelsOut
 		wg              *sync.WaitGroup
-		BaseContext
-	}
-
-	Context interface {
-		Run()
 	}
 )
 
-func (p *RunTask) CreateContext(wg *sync.WaitGroup, mc MainChannelsOut, tc TaskChannelsOut) RunTaskContext {
-	return RunTaskContext{
-		Task:            p,
+func (p *Process) CreateContext(wg *sync.WaitGroup, mc MainChannelsOut, tc TaskChannelsOut) RunContext {
+	return RunContext{
+		Process:         p,
 		wg:              wg,
 		MainChannelsOut: mc,
 		TaskChannelsOut: tc,
-		BaseContext:     BaseContext{},
 	}
 }
 
-func (t *WatchTask) CreateContext() WatchTaskContext {
-	return WatchTaskContext{
-		Task:        t,
-		BaseContext: BaseContext{},
-	}
-}
-
-func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []RunTaskContext {
+func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []RunContext {
 
 	// Create context and channel groups
-	contexts := []RunTaskContext{}
+	contexts := []RunContext{}
 	mainChannels := []MainChannelsOut{}
 	// Keep track of number of running procesess to exit main app
 	runningProcessCount := len(config.Processes)
@@ -120,15 +97,5 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []RunTaskConte
 		}()
 	}
 
-	return contexts
-}
-
-func (config *Config) GenerateWatchTaskContexts() []WatchTaskContext {
-	// Create context and channel groups
-	contexts := []WatchTaskContext{}
-	for _, process := range config.WatchTasks {
-		contexts = append(contexts, process.CreateContext())
-
-	}
 	return contexts
 }

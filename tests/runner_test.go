@@ -10,90 +10,84 @@ import (
 )
 
 // Creates a process with non-default values and waiting values
-func createWaitProcess(command string, args []string, startDelay int) pp.RunTask {
+func createWaitProcess(command string, args []string, startDelay int) pp.Process {
 	var tpExit pp.ExitCommand = "wait"
 	var tpColour pp.ColourCode = "blue"
 	var tpDelays int = 0
 
-	return pp.RunTask{
-		Process: pp.Process{
-			Name:    "wait",
-			Command: command,
-			Args:    args,
-			Prefix:  "wait",
+	return pp.Process{
+		Name:    "wait",
+		Command: command,
+		Args:    args,
+		Prefix:  "wait",
 
-			Color:      tpColour,
-			DisplayPid: true,
-			Status:     pp.ExitStatusRunning,
-			Silent:     true,
-			// These must be set by the config file not the process
-			ShowTimestamp:    false,
-			SeperateNewLines: false,
-		},
-		Delay:           startDelay,
-		RestartAttempts: 0,
-		OnFailure:       tpExit,
-		OnComplete:      tpExit,
-		RestartDelay:    tpDelays,
-		TimeoutOnExit:   tpDelays,
+		Color:      tpColour,
+		DisplayPid: true,
+		Status:     pp.ExitStatusRunning,
+		Silent:     true,
+		// These must be set by the config file not the process
+		ShowTimestamp:    false,
+		SeperateNewLines: false,
+		Delay:            startDelay,
+		RestartAttempts:  0,
+		OnFailure:        tpExit,
+		OnComplete:       tpExit,
+		RestartDelay:     tpDelays,
+		TimeoutOnExit:    tpDelays,
 	}
 }
 
 // Creates a process with non-default values
-func createRestartProcess(command string, args []string, restartAttempts int, restartDelay int) pp.RunTask {
+func createRestartProcess(command string, args []string, restartAttempts int, restartDelay int) pp.Process {
 	var tpExit pp.ExitCommand = "restart"
 	var tpColour pp.ColourCode = "yellow"
 	var tpDelays int = 0
 
-	return pp.RunTask{
-		Process: pp.Process{
-			Name:       "restart",
-			Command:    command,
-			Args:       args,
-			Prefix:     "restart",
-			Color:      tpColour,
-			DisplayPid: true,
-			Status:     pp.ExitStatusRunning,
-			Silent:     true,
-			// These must be set by the config file not the process
-			ShowTimestamp:    true,
-			SeperateNewLines: true,
-		},
-		Delay:           tpDelays,
-		RestartAttempts: restartAttempts,
-		OnFailure:       tpExit,
-		OnComplete:      tpExit,
-		RestartDelay:    restartDelay,
-		TimeoutOnExit:   tpDelays,
+	return pp.Process{
+		Name:       "restart",
+		Command:    command,
+		Args:       args,
+		Prefix:     "restart",
+		Color:      tpColour,
+		DisplayPid: true,
+		Status:     pp.ExitStatusRunning,
+		Silent:     true,
+		// These must be set by the config file not the process
+		ShowTimestamp:    true,
+		SeperateNewLines: true,
+		Delay:            tpDelays,
+		RestartAttempts:  restartAttempts,
+		OnFailure:        tpExit,
+		OnComplete:       tpExit,
+		RestartDelay:     restartDelay,
+		TimeoutOnExit:    tpDelays,
 	}
 }
 
 // Creates a process with non-default values
-func createBuzzkillProcess(command string, args []string) pp.RunTask {
+func createBuzzkillProcess(command string, args []string) pp.Process {
 	var tpExit pp.ExitCommand = "buzzkill"
 	var tpColour pp.ColourCode = "green"
 	var tpDelays int = 0
 
-	return pp.RunTask{
-		Process: pp.Process{
-			Name:       "buzzkill",
-			Command:    command,
-			Args:       args,
-			Prefix:     "buzzkill",
-			Color:      tpColour,
-			DisplayPid: true,
-			Status:     pp.ExitStatusRunning,
-			Silent:     true,
-			// These must be set by the config file not the process
-			ShowTimestamp:    false,
-			SeperateNewLines: false,
-		},
-		Delay:           tpDelays,
-		RestartAttempts: 0,
-		OnFailure:       tpExit,
-		OnComplete:      tpExit,
-		RestartDelay:    tpDelays,
-		TimeoutOnExit:   tpDelays,
+	return pp.Process{
+		Name:       "buzzkill",
+		Command:    command,
+		Args:       args,
+		Prefix:     "buzzkill",
+		Color:      tpColour,
+		DisplayPid: true,
+		Status:     pp.ExitStatusRunning,
+		Silent:     true,
+		// These must be set by the config file not the process
+		ShowTimestamp:    false,
+		SeperateNewLines: false,
+		Delay:            tpDelays,
+		RestartAttempts:  0,
+		OnFailure:        tpExit,
+		OnComplete:       tpExit,
+		RestartDelay:     tpDelays,
+		TimeoutOnExit:    tpDelays,
 	}
 }
 
@@ -182,7 +176,7 @@ func TestExternalBuzzkill(t *testing.T) {
 	if time.Since(t1) > time.Duration(sleepDuration)*time.Second {
 		t.Fatal("Process ran to completion. Context did not exit on buzzkill")
 	}
-	if context.Task.Status == pp.ExitStatusRunning {
+	if context.Process.Status == pp.ExitStatusRunning {
 		t.Fatal("Context run status is still running. Context did not exit on buzzkill")
 	}
 }
@@ -238,7 +232,7 @@ func TestWait(t *testing.T) {
 		t.Fatal("Context recieved buzzkill")
 
 	}
-	if context.Task.Status == pp.ExitStatusRunning {
+	if context.Process.Status == pp.ExitStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }
@@ -295,7 +289,7 @@ func TestRestart(t *testing.T) {
 		t.Fatal("Context recieved buzzkill")
 
 	}
-	if context.Task.Status == pp.ExitStatusRunning {
+	if context.Process.Status == pp.ExitStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }
@@ -354,7 +348,7 @@ func TestRestartWithDelays(t *testing.T) {
 		t.Fatal("Context recieved buzzkill")
 
 	}
-	if context.Task.Status == pp.ExitStatusRunning {
+	if context.Process.Status == pp.ExitStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }
@@ -410,7 +404,7 @@ func TestStartDelay(t *testing.T) {
 	if buzzkilled {
 		t.Fatal("Context recieved buzzkill")
 	}
-	if context.Task.Status == pp.ExitStatusRunning {
+	if context.Process.Status == pp.ExitStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }

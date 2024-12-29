@@ -11,18 +11,18 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-func (c *WatchTaskContext) callback() {
-	c.Task.Status = ExitStatusRunning
+func (c *RunContext) callback() {
+	c.Process.Status = ExitStatusRunning
 	// Create command
-	c.cmd = exec.Command(c.Task.Command, c.Task.Args...)
+	c.cmd = exec.Command(c.Process.Command, c.Process.Args...)
 	c.cmd.Env = os.Environ() // Set the full environment, including PATH
 	// Create IO
 	r, w := io.Pipe()
 	c.readPipe = r
 	c.writePipe = w
 	// Write into the command
-	c.infoWriter = &customWriter{w: os.Stdout, severity: "info", process: &c.Task.Process}   // Write info out
-	c.errorWriter = &customWriter{w: os.Stdout, severity: "error", process: &c.Task.Process} // Write errors out
+	c.infoWriter = &customWriter{w: os.Stdout, severity: "info", process: c.Process}   // Write info out
+	c.errorWriter = &customWriter{w: os.Stdout, severity: "error", process: c.Process} // Write errors out
 	// Set IO
 	c.cmd.Stdout = c.infoWriter
 	c.cmd.Stderr = c.errorWriter
@@ -30,13 +30,13 @@ func (c *WatchTaskContext) callback() {
 	c.cmd.Run()
 	// Go wait somewhere else lamo (*insert you cant sit with us meme*)
 	c.cmd.Wait()
-	c.Task.Status = ExitStatusWatching
+	c.Process.Status = ExitStatusWatching
 }
 
-func (c *WatchTaskContext) Watch() {
+func (c *RunContext) Watch() {
 
-	// c.Task.Status = ExitStatusRunning
-	c.Task.Status = ExitStatusWatching
+	// c.Process.Status = ExitStatusRunning
+	c.Process.Status = ExitStatusWatching
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -45,17 +45,17 @@ func (c *WatchTaskContext) Watch() {
 	}
 
 	// Wait for the start delay
-	c.infoWriter.Write([]byte(fmt.Sprintf("Starting watcher - watched: [%s], ignored: [%s]", strings.Join(c.Task.Watch, ","), strings.Join(c.Task.Ingore, ","))))
+	// c.infoWriter.Write([]byte(fmt.Sprintf("Starting watcher - watched: [%s], ignored: [%s]", strings.Join(c.Process.Watch, ","), strings.Join(c.Process.Ignore, ","))))
 
-	for _, item := range c.Task.Watch {
-		err := watcher.Add(item)
-		if err != nil {
-			c.errorWriter.Write([]byte("File/Directory does not exist"))
-			return
-		}
-	}
+	// for _, item := range c.Process.Watch {
+	// 	err := watcher.Add(item)
+	// 	if err != nil {
+	// 		c.errorWriter.Write([]byte("File/Directory does not exist"))
+	// 		return
+	// 	}
+	// }
 
-	// for _, item := range c.Task.Ingore {
+	// for _, item := range c.Process.Ignore {
 	// 	err := watcher.Remove(item)
 	// 	if err != nil {
 	// 		c.errorWriter.Write([]byte("File/Directory does not exist"))

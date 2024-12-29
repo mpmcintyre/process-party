@@ -59,7 +59,6 @@ using ctrl+c or input "exit" into the command line.
 		wg.Add(len(config.Processes))
 		// Create wait group for each spawned process
 		runContexts := config.GenerateRunTaskContexts(&wg)
-		watchContexts := config.GenerateWatchTaskContexts()
 
 		// Start an input stream monitor
 		go func() {
@@ -90,7 +89,7 @@ using ctrl+c or input "exit" into the command line.
 					}
 					input := s[1:]
 					for _, context := range runContexts {
-						if context.Task.Status == pp.ExitStatusRunning {
+						if context.Process.Status == pp.ExitStatusRunning {
 							context.MainChannelsOut.StdIn <- strings.Join(input, "")
 						}
 					}
@@ -106,7 +105,7 @@ using ctrl+c or input "exit" into the command line.
 						tbl := table.New("Index", "Name", "Prefix", "Command", "Status")
 						tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
 						for index, context := range runContexts {
-							tbl.AddRow(index, context.Task.Name, context.Task.Prefix, context.Task.Command, context.Task.Process.GetStatusAsStr())
+							tbl.AddRow(index, context.Process.Name, context.Process.Prefix, context.Process.Command, context.Process.GetStatusAsStr())
 						}
 						tbl.Print()
 						fmt.Println()
@@ -120,7 +119,7 @@ using ctrl+c or input "exit" into the command line.
 					// 	tbl := table.New("Index", "Name", "Prefix", "Command", "Status")
 					// 	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
 					// 	for index, context := range runContexts {
-					// 		tbl.AddRow(index, context.Task.Name, context.Task.Prefix, context.Task.Command, context.Task.Process.GetStatusAsStr())
+					// 		tbl.AddRow(index, context.Process.Name, context.Process.Prefix, context.Process.Command, context.Process.Process.GetStatusAsStr())
 					// 	}
 					// 	tbl.Print()
 					// 	fmt.Println()
@@ -130,7 +129,7 @@ using ctrl+c or input "exit" into the command line.
 					fmt.Println("Exiting all")
 
 					for _, context := range runContexts {
-						if context.Task.Status == pp.ExitStatusRunning {
+						if context.Process.Status == pp.ExitStatusRunning {
 							context.MainChannelsOut.Buzzkill <- true
 						}
 					}
@@ -145,9 +144,9 @@ using ctrl+c or input "exit" into the command line.
 					found := false
 					input := s[1:]
 					for _, context := range runContexts {
-						if context.Task.Name == target || context.Task.Prefix == target {
+						if context.Process.Name == target || context.Process.Prefix == target {
 							found = true
-							if context.Task.Status == pp.ExitStatusRunning {
+							if context.Process.Status == pp.ExitStatusRunning {
 								context.MainChannelsOut.StdIn <- strings.Join(input, "")
 							} else {
 								fmt.Printf("The %s command has exited, cannot write to process\n", target)
@@ -165,9 +164,9 @@ using ctrl+c or input "exit" into the command line.
 		for _, context := range runContexts {
 			go context.Run()
 		}
-		for _, context := range watchContexts {
-			context.Watch()
-		}
+		// for _, context := range watchContexts {
+		// 	context.Watch()
+		// }
 		wg.Wait()
 
 		return nil
