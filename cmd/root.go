@@ -56,7 +56,7 @@ using ctrl+c or input "exit" into the command line.
 		}
 
 		var wg sync.WaitGroup
-		wg.Add(len(config.Processes))
+		// wg.Add(len(config.Processes))
 		// Create wait group for each spawned process
 		runContexts := config.GenerateRunTaskContexts(&wg)
 
@@ -116,7 +116,7 @@ using ctrl+c or input "exit" into the command line.
 
 					for _, context := range runContexts {
 						if context.Process.Status == pp.ProcessStatusRunning {
-							context.Buzzkill()
+							context.BuzzkillProcess()
 						}
 					}
 

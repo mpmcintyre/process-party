@@ -66,24 +66,29 @@ func (c *ExecutionContext) fileFilter() func(string) bool {
 		return false
 	}
 }
-func (c *ExecutionContext) CreateFsTrigger() (chan bool, chan bool) {
+func (c *ExecutionContext) CreateFsTrigger(exitChannel chan bool) chan bool {
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		c.errorWriter.Write([]byte("File/Directory does not exist"))
-		return nil, nil
+		return nil
+	}
+
+	if len(c.Process.Trigger.FileSystem.Watch) == 0 {
+		watcher.Close()
+		return nil
 	}
 
 	for _, item := range c.Process.Trigger.FileSystem.Watch {
 		err := watcher.Add(item)
 		if err != nil {
 			c.errorWriter.Write([]byte("File/Directory does not exist"))
-			return nil, nil
+			watcher.Close()
+			return nil
 		}
 	}
 
 	trigger := make(chan bool)
-	done := make(chan bool)
 	filter := c.fileFilter()
 
 	// Start file watcher
@@ -107,14 +112,14 @@ func (c *ExecutionContext) CreateFsTrigger() (chan bool, chan bool) {
 					watcher.Close()
 					return
 				}
-			case <-done:
+			case <-exitChannel:
 				watcher.Close()
 				return
 			}
 		}
 	}()
 
-	return trigger, done
+	return trigger
 }
 
 func (c *ExecutionContext) WaitForTrigger() {
