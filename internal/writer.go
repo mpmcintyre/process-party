@@ -36,6 +36,10 @@ func (c *customWriter) createPrefix() {
 	c.prefix = c.prefix + "]"
 }
 
+func (c customWriter) Printf(format string, a ...any) {
+	c.Write([]byte(fmt.Sprintf(format, a...)))
+}
+
 func (c customWriter) Write(p []byte) (int, error) {
 	if c.process.Silent {
 		return 0, nil

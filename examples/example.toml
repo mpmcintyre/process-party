@@ -35,6 +35,16 @@ on_failure = "restart"
 on_complete = "restart"
 restart_attempts = 3
 silent = false
+  [processes.trigger]
+    [processes.trigger.filesystem]
+      watch = ["test"]
+      ignore = ["test"]
+      filter_for = ["*.test"]
+    [processes.trigger.process]
+      on_start = ["test"]
+      on_end = ["test"]
+      on_complete = ["test"]
+      on_error = ["test"]
 
 # [[processes]]
 # name = "example fail2"

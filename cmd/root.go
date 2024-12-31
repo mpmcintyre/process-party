@@ -89,8 +89,8 @@ using ctrl+c or input "exit" into the command line.
 					}
 					input := s[1:]
 					for _, context := range runContexts {
-						if context.Process.Status == pp.ExitStatusRunning {
-							context.MainChannelsOut.StdIn <- strings.Join(input, "")
+						if context.Process.Status == pp.ProcessStatusRunning {
+							context.Write(strings.Join(input, ""))
 						}
 					}
 
@@ -110,27 +110,13 @@ using ctrl+c or input "exit" into the command line.
 						tbl.Print()
 						fmt.Println()
 					}
-					// Print watchContexts status
-					// if len(watchContexts) > 0 {
-					// 	fmt.Println()
-					// 	// Print status of every command
-					// 	headerFmt := color.New(color.FgGreen, color.Underline).SprintfFunc()
-					// 	columnFmt := color.New(color.FgYellow).SprintfFunc()
-					// 	tbl := table.New("Index", "Name", "Prefix", "Command", "Status")
-					// 	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
-					// 	for index, context := range runContexts {
-					// 		tbl.AddRow(index, context.Process.Name, context.Process.Prefix, context.Process.Command, context.Process.Process.GetStatusAsStr())
-					// 	}
-					// 	tbl.Print()
-					// 	fmt.Println()
-					// }
 
 				case "exit":
 					fmt.Println("Exiting all")
 
 					for _, context := range runContexts {
-						if context.Process.Status == pp.ExitStatusRunning {
-							context.MainChannelsOut.Buzzkill <- true
+						if context.Process.Status == pp.ProcessStatusRunning {
+							context.Buzzkill()
 						}
 					}
 
@@ -146,8 +132,8 @@ using ctrl+c or input "exit" into the command line.
 					for _, context := range runContexts {
 						if context.Process.Name == target || context.Process.Prefix == target {
 							found = true
-							if context.Process.Status == pp.ExitStatusRunning {
-								context.MainChannelsOut.StdIn <- strings.Join(input, "")
+							if context.Process.Status == pp.ProcessStatusRunning {
+								context.Write(strings.Join(input, ""))
 							} else {
 								fmt.Printf("The %s command has exited, cannot write to process\n", target)
 							}
@@ -162,11 +148,9 @@ using ctrl+c or input "exit" into the command line.
 
 		// Start the tasks
 		for _, context := range runContexts {
-			go context.Run()
+			go context.Start()
 		}
-		// for _, context := range watchContexts {
-		// 	context.Watch()
-		// }
+
 		wg.Wait()
 
 		return nil

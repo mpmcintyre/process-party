@@ -37,7 +37,7 @@ func createRunTask(increment int, nameStamp string) pp.Process {
 		Color:           tpColour,
 		DisplayPid:      true,
 		StartStream:     startStream,
-		Status:          pp.ExitStatusRunning,
+		Status:          pp.ProcessStatusRunning,
 		Pid:             tpPID,
 		Silent:          true,
 		// These must be set by the config file not the process
@@ -45,8 +45,9 @@ func createRunTask(increment int, nameStamp string) pp.Process {
 		SeperateNewLines: false,
 		Trigger: pp.Trigger{
 			FileSystem: pp.FileSystemTrigger{
-				Watch:  []string{"test"},
-				Ignore: []string{"test"},
+				Watch:          []string{"test"},
+				Ignore:         []string{"test"},
+				ContainFilters: []string{"test"},
 			},
 			Process: pp.ProcessTrigger{
 				OnStart:    []string{"test"},
@@ -56,6 +57,42 @@ func createRunTask(increment int, nameStamp string) pp.Process {
 			},
 		},
 	}
+}
+
+func recursiveSearchForEq(itemA map[string]interface{}, itemB map[string]interface{}) bool {
+	// Handle the case where itemB is nil
+	if itemB == nil {
+		return false
+	}
+
+	for key, valueA := range itemA {
+		// Check if the key exists in itemB
+		valueB, exists := itemB[key]
+		if !exists {
+			continue
+		}
+
+		// Handle nested maps
+		if mapA, isMapA := valueA.(map[string]interface{}); isMapA {
+			if mapB, isMapB := valueB.(map[string]interface{}); isMapB {
+				if recursiveSearchForEq(mapA, mapB) {
+					// fmt.Printf("Map %s contains a default value\n", key)
+					fmt.Printf("<--%s", key)
+					return true
+				}
+			}
+			continue
+		}
+
+		// Compare non-map values
+		if reflect.DeepEqual(valueA, valueB) {
+			fmt.Printf("Key %s is equal to the default value, Value: %v\n", key, valueA)
+			fmt.Printf("%v<--%s", valueA, key)
+			return true
+		}
+	}
+
+	return false
 }
 
 // Returns true if a default value is found
@@ -84,12 +121,12 @@ func containsDefaultValues(process pp.Process) bool {
 		return true
 	}
 
-	for key, value := range resultA {
-		if reflect.DeepEqual(value, resultB[key]) {
-			fmt.Printf("Key %s is equal to the default value, Value: %v\n", key, value)
-			return true
-		}
+	if recursiveSearchForEq(resultA, resultB) {
+		fmt.Printf("<--config\n")
+		fmt.Println("The test configuration contains a default value, this usually implies that the config was modified and the parsing is not tested properly")
+		return true
 	}
+
 	return false
 }
 

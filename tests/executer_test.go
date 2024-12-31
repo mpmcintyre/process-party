@@ -23,7 +23,7 @@ func createWaitProcess(command string, args []string, startDelay int) pp.Process
 
 		Color:      tpColour,
 		DisplayPid: true,
-		Status:     pp.ExitStatusRunning,
+		Status:     pp.ProcessStatusRunning,
 		Silent:     true,
 		// These must be set by the config file not the process
 		ShowTimestamp:    false,
@@ -50,7 +50,7 @@ func createRestartProcess(command string, args []string, restartAttempts int, re
 		Prefix:     "restart",
 		Color:      tpColour,
 		DisplayPid: true,
-		Status:     pp.ExitStatusRunning,
+		Status:     pp.ProcessStatusRunning,
 		Silent:     true,
 		// These must be set by the config file not the process
 		ShowTimestamp:    true,
@@ -77,7 +77,7 @@ func createBuzzkillProcess(command string, args []string) pp.Process {
 		Prefix:     "buzzkill",
 		Color:      tpColour,
 		DisplayPid: true,
-		Status:     pp.ExitStatusRunning,
+		Status:     pp.ProcessStatusRunning,
 		Silent:     true,
 		// These must be set by the config file not the process
 		ShowTimestamp:    false,
@@ -98,37 +98,31 @@ func TestInternalBuzzkill(t *testing.T) {
 	// Test that each one works by creating a file with the name of the process
 	// delay := 100 //ms
 	cmdSettings := testHelpers.CreateFailCmdSettings()
-	buzkillTask := createBuzzkillProcess(cmdSettings.Cmd, cmdSettings.Args)
+	buzzkillTask := createBuzzkillProcess(cmdSettings.Cmd, cmdSettings.Args)
 
 	wg.Add(1)
 
 	// Create the task output channels
 	taskChannel := pp.TaskChannelsOut{
-		Buzzkill:   make(chan bool),
-		ExitStatus: make(chan int),
+		Buzzkill:    make(chan bool),
+		ProcessExit: make(chan int),
 	}
 
-	mainChannel := pp.MainChannelsOut{
-		Buzzkill: make(chan bool),
-		StdIn:    make(chan string),
-	}
-
-	context := buzkillTask.CreateContext(
+	context := buzzkillTask.CreateContext(
 		&wg,
-		mainChannel,
 		taskChannel,
 	)
 
 	buzzkilled := false
 	go func() {
-		<-taskChannel.ExitStatus
+		<-taskChannel.ProcessExit
 		t.Log("EOC recieved")
 	}()
 	go func() {
 		buzzkilled = <-taskChannel.Buzzkill
 		t.Log("Buzkill recieved")
 	}()
-	go context.Run()
+	go context.Start()
 	wg.Wait()
 
 	if !buzzkilled {
@@ -148,35 +142,29 @@ func TestExternalBuzzkill(t *testing.T) {
 		t.Fatalf("delay duration cannot be larger than sleepDuration/2, delay=%d ms, sleep=%d s", delay, sleepDuration)
 	}
 	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
-	buzkillTask := createBuzzkillProcess(cmdSettings.Cmd, cmdSettings.Args)
+	buzzkillTask := createBuzzkillProcess(cmdSettings.Cmd, cmdSettings.Args)
 
 	wg.Add(1)
 
 	// Create the task output channels
 	taskChannel := pp.TaskChannelsOut{
-		Buzzkill:   make(chan bool),
-		ExitStatus: make(chan int),
+		Buzzkill:    make(chan bool),
+		ProcessExit: make(chan int),
 	}
 
-	mainChannel := pp.MainChannelsOut{
-		Buzzkill: make(chan bool),
-		StdIn:    make(chan string),
-	}
-
-	context := buzkillTask.CreateContext(
+	context := buzzkillTask.CreateContext(
 		&wg,
-		mainChannel,
 		taskChannel,
 	)
-	go context.Run()
+	go context.Start()
 	time.Sleep(time.Duration(delay) * time.Millisecond)
 	t1 := time.Now()
-	mainChannel.Buzzkill <- true
+	context.Buzzkill()
 	wg.Wait()
 	if time.Since(t1) > time.Duration(sleepDuration)*time.Second {
 		t.Fatal("Process ran to completion. Context did not exit on buzzkill")
 	}
-	if context.Process.Status == pp.ExitStatusRunning {
+	if context.Process.Status == pp.ProcessStatusRunning {
 		t.Fatal("Context run status is still running. Context did not exit on buzzkill")
 	}
 }
@@ -199,25 +187,19 @@ func TestWait(t *testing.T) {
 
 	// Create the task output channels
 	taskChannel := pp.TaskChannelsOut{
-		Buzzkill:   make(chan bool),
-		ExitStatus: make(chan int),
-	}
-
-	mainChannel := pp.MainChannelsOut{
-		Buzzkill: make(chan bool),
-		StdIn:    make(chan string),
+		Buzzkill:    make(chan bool),
+		ProcessExit: make(chan int),
 	}
 
 	context := completeTask.CreateContext(
 		&wg,
-		mainChannel,
 		taskChannel,
 	)
 	buzzkilled := false
-	go context.Run()
+	go context.Start()
 	t1 := time.Now()
 	go func() {
-		<-taskChannel.ExitStatus
+		<-taskChannel.ProcessExit
 		t.Log("EOC recieved")
 	}()
 	go func() {
@@ -232,7 +214,7 @@ func TestWait(t *testing.T) {
 		t.Fatal("Context recieved buzzkill")
 
 	}
-	if context.Process.Status == pp.ExitStatusRunning {
+	if context.Process.Status == pp.ProcessStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }
@@ -252,26 +234,20 @@ func TestRestart(t *testing.T) {
 
 	// Create the task output channels
 	taskChannel := pp.TaskChannelsOut{
-		Buzzkill:   make(chan bool),
-		ExitStatus: make(chan int),
-	}
-
-	mainChannel := pp.MainChannelsOut{
-		Buzzkill: make(chan bool),
-		StdIn:    make(chan string),
+		Buzzkill:    make(chan bool),
+		ProcessExit: make(chan int),
 	}
 
 	context := sleepTask.CreateContext(
 		&wg,
-		mainChannel,
 		taskChannel,
 	)
 	buzzkilled := false
-	go context.Run()
+	go context.Start()
 	t1 := time.Now()
 	go func() {
 		for attempt := range restartAttempts {
-			exit := <-taskChannel.ExitStatus
+			exit := <-taskChannel.ProcessExit
 			t.Logf("Attept %d - Exit status %d recieved\n", attempt+1, exit)
 		}
 	}()
@@ -289,7 +265,7 @@ func TestRestart(t *testing.T) {
 		t.Fatal("Context recieved buzzkill")
 
 	}
-	if context.Process.Status == pp.ExitStatusRunning {
+	if context.Process.Status == pp.ProcessStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }
@@ -311,26 +287,20 @@ func TestRestartWithDelays(t *testing.T) {
 
 	// Create the task output channels
 	taskChannel := pp.TaskChannelsOut{
-		Buzzkill:   make(chan bool),
-		ExitStatus: make(chan int),
-	}
-
-	mainChannel := pp.MainChannelsOut{
-		Buzzkill: make(chan bool),
-		StdIn:    make(chan string),
+		Buzzkill:    make(chan bool),
+		ProcessExit: make(chan int),
 	}
 
 	context := restartTask.CreateContext(
 		&wg,
-		mainChannel,
 		taskChannel,
 	)
 	buzzkilled := false
-	go context.Run()
+	go context.Start()
 	t1 := time.Now()
 	go func() {
 		for attempt := range restartAttempts {
-			exit := <-taskChannel.ExitStatus
+			exit := <-taskChannel.ProcessExit
 			t.Logf("Attept %d - Exit status %d recieved\n", attempt+1, exit)
 		}
 	}()
@@ -348,7 +318,7 @@ func TestRestartWithDelays(t *testing.T) {
 		t.Fatal("Context recieved buzzkill")
 
 	}
-	if context.Process.Status == pp.ExitStatusRunning {
+	if context.Process.Status == pp.ProcessStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }
@@ -372,25 +342,19 @@ func TestStartDelay(t *testing.T) {
 
 	// Create the task output channels
 	taskChannel := pp.TaskChannelsOut{
-		Buzzkill:   make(chan bool),
-		ExitStatus: make(chan int),
-	}
-
-	mainChannel := pp.MainChannelsOut{
-		Buzzkill: make(chan bool),
-		StdIn:    make(chan string),
+		Buzzkill:    make(chan bool),
+		ProcessExit: make(chan int),
 	}
 
 	context := waitTask.CreateContext(
 		&wg,
-		mainChannel,
 		taskChannel,
 	)
 	buzzkilled := false
-	go context.Run()
+	go context.Start()
 	t1 := time.Now()
 	go func() {
-		<-taskChannel.ExitStatus
+		<-taskChannel.ProcessExit
 		t.Log("EOC recieved")
 	}()
 	go func() {
@@ -404,7 +368,7 @@ func TestStartDelay(t *testing.T) {
 	if buzzkilled {
 		t.Fatal("Context recieved buzzkill")
 	}
-	if context.Process.Status == pp.ExitStatusRunning {
+	if context.Process.Status == pp.ProcessStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }

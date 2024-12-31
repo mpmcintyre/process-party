@@ -13,14 +13,16 @@ import (
 )
 
 type (
-	ExitCommand string
-	ExitStatus  int
-	ProcessType int
-	ColourCode  string
+	ExitCommand   string
+	ProcessStatus int
+	ProcessType   int
+	ColourCode    string
+	Verbosity     int
 
 	FileSystemTrigger struct {
-		Watch  []string `toml:"watch" json:"watch" yaml:"watch"`    // List of directories/folders to watch
-		Ignore []string `toml:"ignore" json:"ignore" yaml:"ignore"` // List of directories/folders to ignore
+		Watch          []string `toml:"watch" json:"watch" yaml:"watch"`                // List of directories/folders to watch
+		Ignore         []string `toml:"ignore" json:"ignore" yaml:"ignore"`             // List of directories/folders to ignore
+		ContainFilters []string `toml:"filter_for" json:"filter_for" yaml:"filter_for"` // Include or exclude files
 	}
 
 	ProcessTrigger struct {
@@ -56,7 +58,7 @@ type (
 		TimeoutOnExit   int         `toml:"timeout_on_exit" json:"timeout_on_exit" yaml:"timeout_on_exit"`
 		// Runtime
 		ShowTimestamp bool
-		Status        ExitStatus
+		Status        ProcessStatus
 		Pid           string
 	}
 
@@ -64,17 +66,10 @@ type (
 		Process
 	}
 
-	WatchTask struct {
-		Process
-		Watch  []string `toml:"watch" json:"watch" yaml:"watch"`
-		Ignore []string `toml:"ignore" json:"ignore" yaml:"ignore"`
-	}
-
 	Config struct {
 		Processes        []Process `toml:"processes" json:"processes" yaml:"processes"`
-		WatchTasks       []WatchTask
-		SeperateNewLines bool `toml:"indicate_every_line" json:"indicate_every_line" yaml:"indicate_every_line"`
-		ShowTimestamp    bool `toml:"show_timestamp" json:"show_timestamp" yaml:"show_timestamp"`
+		SeperateNewLines bool      `toml:"indicate_every_line" json:"indicate_every_line" yaml:"indicate_every_line"`
+		ShowTimestamp    bool      `toml:"show_timestamp" json:"show_timestamp" yaml:"show_timestamp"`
 		filePresent      bool
 	}
 )
@@ -86,18 +81,12 @@ const (
 )
 
 const (
-	ExitStatusNotStarted ExitStatus = iota
-	ExitStatusRunning
-	ExitStatusExited
-	ExitStatusFailed
-	ExitStatusRestarting
-	ExitStatusWatching
-)
-
-const (
-	ProcessTypeUnknown ProcessType = iota
-	ProcessTypeRunner
-	ProcessTypeWatcher
+	ProcessStatusNotStarted ProcessStatus = iota
+	ProcessStatusRunning
+	ProcessStatusExited
+	ProcessStatusFailed
+	ProcessStatusRestarting
+	ProcessStatusWaitingTrigger
 )
 
 const (
@@ -131,16 +120,33 @@ func (p *Process) GetFgColour() func(format string, a ...interface{}) string {
 	}
 }
 
+func (p *Process) HasFsTrigger() bool {
+	return len(p.Trigger.FileSystem.Watch) > 0
+}
+
+func (p *Process) HasProcessTrigger() bool {
+	return len(p.Trigger.Process.OnComplete) > 0 ||
+		len(p.Trigger.Process.OnEnd) > 0 ||
+		len(p.Trigger.Process.OnStart) > 0 ||
+		len(p.Trigger.Process.OnError) > 0
+}
+
+func (t *Process) HasTrigger() bool {
+	return t.HasFsTrigger() || t.HasProcessTrigger()
+}
+
 func (c *Process) GetStatusAsStr() string {
 	switch c.Status {
-	case ExitStatusNotStarted:
+	case ProcessStatusNotStarted:
 		return "Not started"
-	case ExitStatusRunning:
+	case ProcessStatusRunning:
 		return "Running"
-	case ExitStatusExited:
+	case ProcessStatusExited:
 		return "Exited"
-	case ExitStatusFailed:
+	case ProcessStatusFailed:
 		return "Failed"
+	case ProcessStatusWaitingTrigger:
+		return "Waitinf for trigger"
 	}
 	return "Unknown"
 }
@@ -148,7 +154,6 @@ func (c *Process) GetStatusAsStr() string {
 func CreateConfig() *Config {
 	return &Config{
 		Processes:        []Process{},
-		WatchTasks:       []WatchTask{},
 		SeperateNewLines: true,
 		ShowTimestamp:    true,
 		filePresent:      false,
@@ -229,7 +234,8 @@ func (c *Config) ParseFile(path string) error {
 	color.HiGreen("Found %d processes in %s", len(c.Processes), path)
 	color.HiBlack("Process tasks:")
 	outputString := "["
-	// color.HiBlack("[")
+	waitingString := "["
+	waitCounter := 0
 	for i := range c.Processes {
 		output := fmt.Sprintf("%#v", c.Processes[i].Name)
 		if c.Processes[i].Silent {
@@ -237,38 +243,27 @@ func (c *Config) ParseFile(path string) error {
 		}
 		if i == len(c.Processes)-1 {
 			outputString += output
-			// color.HiBlack("%s", output)
+			// Triggers
+			if c.Processes[i].HasTrigger() {
+				waitingString += output
+				waitCounter++
+			}
 		} else {
 			outputString += fmt.Sprintf("%s, ", output)
-			// color.HiBlack("%s, ", output)
+			if c.Processes[i].HasTrigger() {
+				waitingString += fmt.Sprintf("%s, ", output)
+				waitCounter++
+			}
 		}
 		// Set values
 		c.Processes[i].SeperateNewLines = c.SeperateNewLines
 		c.Processes[i].ShowTimestamp = c.ShowTimestamp
 	}
 	color.HiBlack("%s]\n\n", outputString)
-
-	color.HiGreen("Found %d watchers in %s", len(c.WatchTasks), path)
-	color.HiBlack("Watcher tasks:")
-	outputString = "["
-	// color.HiBlack("[")
-	for i := range c.WatchTasks {
-		output := fmt.Sprintf("%#v", c.WatchTasks[i].Name)
-		if c.WatchTasks[i].Silent {
-			output = fmt.Sprintf("%#v (silent)", c.WatchTasks[i].Name)
-		}
-		if i == len(c.WatchTasks)-1 {
-			outputString += output
-			// color.HiBlack("%s", output)
-		} else {
-			outputString += fmt.Sprintf("%s, ", output)
-			// color.HiBlack("%s, ", output)
-		}
-		c.WatchTasks[i].SeperateNewLines = c.SeperateNewLines
-		c.WatchTasks[i].ShowTimestamp = c.ShowTimestamp
+	color.HiGreen("Processes %d waiting for triggers", waitCounter)
+	if waitCounter > 0 {
+		color.HiBlack("%s]\n\n", waitingString)
 	}
-	color.HiBlack("%s]\n\n", outputString)
-
 	c.filePresent = true
 
 	return nil
