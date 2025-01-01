@@ -109,7 +109,8 @@ func TestInternalBuzzkill(t *testing.T) {
 		buzzkilled.Store(true)
 		t.Log("Buzkill recieved")
 	}()
-	go context.Start()
+
+	context.Start()
 	wg.Wait()
 	assert.True(t, buzzkilled.Load())
 }
@@ -131,7 +132,8 @@ func TestExternalBuzzkill(t *testing.T) {
 	context := buzzkillTask.CreateContext(
 		&wg,
 	)
-	go context.Start()
+
+	context.Start()
 	time.Sleep(time.Duration(delay) * time.Millisecond)
 	t1 := time.Now()
 	t.Log("Sending buzzkill")
@@ -177,7 +179,8 @@ func TestWait(t *testing.T) {
 		buzzkilled = <-bkChan
 		t.Log("Buzkill recieved")
 	}()
-	go context.Start()
+
+	context.Start()
 	t1 := time.Now()
 
 	wg.Wait()
@@ -229,7 +232,8 @@ func TestRestart(t *testing.T) {
 		buzzkilled = <-bkChan
 		t.Log("Buzkill recieved")
 	}()
-	go context.Start()
+
+	context.Start()
 	t1 := time.Now()
 
 	wg.Wait()
@@ -282,7 +286,8 @@ func TestRestartWithDelays(t *testing.T) {
 		buzzkilled = <-bkChan
 		t.Log("Buzkill recieved")
 	}()
-	go context.Start()
+
+	context.Start()
 	t1 := time.Now()
 	wg.Wait()
 	if time.Since(t1) < time.Duration(restartDelay*restartAttempts)*time.Second {
@@ -336,7 +341,8 @@ func TestStartDelay(t *testing.T) {
 		buzzkilled = <-bkChan
 		t.Log("Buzkill recieved")
 	}()
-	go context.Start()
+
+	context.Start()
 	t1 := time.Now()
 	wg.Wait()
 	if time.Since(t1) < time.Duration(sleepDuration) {

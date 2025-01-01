@@ -17,6 +17,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var execCommands []string
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "process-party ./path/to/config.yml -e \"tailwindcss ...\" -e \"go run main.go\"",
@@ -37,7 +39,7 @@ using ctrl+c or input "exit" into the command line.
 			return errors.New("please provide either a directory or execution commands to run in parallel")
 		}
 
-		// Print logo
+		// Print ascii art
 		color.HiGreen("\n   ___                             ___           __      \n  / _ \\_______  _______ ___ ___   / _ \\___ _____/ /___ __\n / ___/ __/ _ \\/ __/ -_|_-<(_-<  / ___/ _ `/ __/ __/ // /\n/_/  /_/  \\___/\\__/\\__/___/___/ /_/   \\_,_/_/  \\__/\\_, / \n                                                  /___/  ")
 		// Create the configuration to store settings and process configurations
 		config := pp.CreateConfig()
@@ -52,13 +54,22 @@ using ctrl+c or input "exit" into the command line.
 
 		// Parse the inline commands (-e or --execute flag)
 		for _, cmd := range execCommands {
-			config.ParseInlineCmd(cmd)
+			err := config.ParseInlineCmd(cmd)
+			if err != nil {
+				return err
+			}
 		}
 
+		// Create the waitgroup
 		var wg sync.WaitGroup
-		// wg.Add(len(config.Processes))
-		// Create wait group for each spawned process
+
+		// Generate the contexts for all processes in the config
 		runContexts := config.GenerateRunTaskContexts(&wg)
+		// Link contexts with their triggers
+		err := pp.LinkProcessTriggers(&runContexts)
+		if err != nil {
+			return err
+		}
 
 		// Start an input stream monitor
 		go func() {
@@ -148,7 +159,7 @@ using ctrl+c or input "exit" into the command line.
 
 		// Start the tasks
 		for _, context := range runContexts {
-			go context.Start()
+			context.Start()
 		}
 
 		wg.Wait()
@@ -163,8 +174,6 @@ func Execute() {
 		os.Exit(1)
 	}
 }
-
-var execCommands []string
 
 func init() {
 	rootCmd.Flags().StringSliceVarP(&execCommands, "execute", "e", execCommands, "Execute command (can be used multiple times)")

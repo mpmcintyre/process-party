@@ -54,16 +54,12 @@ func (p *Process) CreateContext(wg *sync.WaitGroup) ExecutionContext {
 		triggers:                 make([]chan bool, 0),
 	}
 
-	wg.Add(1)
 	// Write into the command
 	context.infoWriter = &customWriter{w: os.Stdout, severity: "info", process: context.Process}   // Write info out
 	context.errorWriter = &customWriter{w: os.Stdout, severity: "error", process: context.Process} // Write errors out
 	// Set IO
 	context.readPipe, context.writePipe = io.Pipe()
-	fsExitChannel := context.getInternalExitNotifier()
-
-	fsTrigger := context.CreateFsTrigger(fsExitChannel)
-
+	fsTrigger := context.CreateFsTrigger()
 	if fsTrigger != nil {
 		context.triggers = append(context.triggers, fsTrigger)
 	}
@@ -379,33 +375,32 @@ func (e *ExecutionContext) end() {
 }
 
 func (e *ExecutionContext) Start() {
+	e.wg.Add(1)
 
-	// buzzkill := e.getInternalExitNotifier()
+	go func() {
+		buzzkill := e.getInternalExitNotifier()
+		// TODO: Check for process trigger here too
+		if len(e.triggers) == 0 {
+			e.execute()
+		} else {
+		monitorLoop:
+			for {
+				for _, trigger := range e.triggers {
+					select {
+					case <-trigger:
+						e.execute()
+						// Break monitoring if buzzkill commited
+						if e.exitEvent != ExitEventInternal {
+							break monitorLoop
+						}
 
-	// TODO: Check for process trigger here too
-	fmt.Printf("Trigger length = %d\n", len(e.triggers))
-	if len(e.triggers) == 0 {
-		e.execute()
-	} else {
-		e.execute()
+					case <-buzzkill:
+						break monitorLoop
+					}
 
-		// monitorLoop:
-		// for {
-		// 	for _, trigger := range e.triggers {
-		// 		select {
-		// 		case <-trigger:
-		// 			e.execute()
-		// 			// Break monitoring if buzzkill commited
-		// 			if e.exitEvent != ExitEventInternal {
-		// 				break monitorLoop
-		// 			}
-
-		// 		case <-buzzkill:
-		// 			break monitorLoop
-		// 		}
-
-		// 	}
-		// }
-	}
-	e.end()
+				}
+			}
+		}
+		e.end()
+	}()
 }

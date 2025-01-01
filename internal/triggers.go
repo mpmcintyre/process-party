@@ -1,6 +1,7 @@
 package pp
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -66,7 +67,8 @@ func (c *ExecutionContext) fileFilter() func(string) bool {
 		return false
 	}
 }
-func (c *ExecutionContext) CreateFsTrigger(exitChannel chan bool) chan bool {
+
+func (c *ExecutionContext) CreateFsTrigger() chan bool {
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -90,6 +92,7 @@ func (c *ExecutionContext) CreateFsTrigger(exitChannel chan bool) chan bool {
 
 	trigger := make(chan bool)
 	filter := c.fileFilter()
+	exitChannel := c.getInternalExitNotifier()
 
 	// Start file watcher
 	go func() {
@@ -122,6 +125,89 @@ func (c *ExecutionContext) CreateFsTrigger(exitChannel chan bool) chan bool {
 	return trigger
 }
 
-func (c *ExecutionContext) WaitForTrigger() {
+func (e *ExecutionContext) CreateProcessTrigger(signal ProcessStatus) chan bool {
+	trigger := make(chan bool)
+	go func() {
+		sigChannel := e.GetProcessNotificationChannel()
+		for {
+			sig := <-sigChannel
+			if signal == sig {
+				trigger <- true
+			}
+		}
+	}()
 
+	return trigger
+}
+
+func contains(arr []string, target string) bool {
+	for _, value := range arr {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+// Links process triggers together
+func LinkProcessTriggers(contexts *[]ExecutionContext) error {
+	// Create a map for quick access and checking circular triggers
+	x := map[string]*ExecutionContext{}
+	for _, context := range *contexts {
+		x[context.Process.Name] = &context
+	}
+
+	applyTriggers := func(triggers []string, signal ProcessStatus, context *ExecutionContext) error {
+		for _, process := range triggers {
+			if value, exists := x[process]; exists {
+				if contains(value.Process.Trigger.Process.OnComplete, process) {
+					return errors.New("Circular trigger detected: " + value.Process.Name + " and " + process + " trigger each other")
+				}
+				if contains(value.Process.Trigger.Process.OnEnd, process) {
+					return errors.New("Circular trigger detected: " + value.Process.Name + " and " + process + " trigger each other")
+				}
+				if contains(value.Process.Trigger.Process.OnError, process) {
+					return errors.New("Circular trigger detected: " + value.Process.Name + " and " + process + " trigger each other")
+				}
+				if contains(value.Process.Trigger.Process.OnStart, process) {
+					return errors.New("Circular trigger detected: " + value.Process.Name + " and " + process + " trigger each other")
+				}
+				trigger := value.CreateProcessTrigger(signal)
+				context.triggers = append(context.triggers, trigger)
+			} else {
+				return errors.New("Specified target process for trigger does not exist on " + context.Process.Name + ", Non existant trigger = " + process)
+			}
+		}
+		return nil
+	}
+
+	for _, context := range *contexts {
+		// On successfull completion
+		err := applyTriggers(context.Process.Trigger.Process.OnComplete, ProcessStatusExited, &context)
+		if err != nil {
+			return err
+		}
+		// On error
+		err = applyTriggers(context.Process.Trigger.Process.OnError, ProcessStatusFailed, &context)
+		if err != nil {
+			return err
+		}
+		// On any end
+		err = applyTriggers(context.Process.Trigger.Process.OnEnd, ProcessStatusExited, &context)
+		if err != nil {
+			return err
+		}
+		err = applyTriggers(context.Process.Trigger.Process.OnEnd, ProcessStatusFailed, &context)
+		if err != nil {
+			return err
+		}
+		// On start
+		err = applyTriggers(context.Process.Trigger.Process.OnStart, ProcessStatusRunning, &context)
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return nil
 }

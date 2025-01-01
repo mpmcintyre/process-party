@@ -231,6 +231,8 @@ func (c *Config) ParseFile(path string) error {
 		return errors.New("unsupported filetype provided")
 	}
 
+	uniqueChecks := map[string]bool{}
+
 	color.HiGreen("Found %d processes in %s", len(c.Processes), path)
 	color.HiBlack("Process tasks:")
 	outputString := "["
@@ -255,9 +257,21 @@ func (c *Config) ParseFile(path string) error {
 				waitCounter++
 			}
 		}
-		// Set values
+		// Fix broken commands (command is 1 value, append the rest to args)
+		if len(strings.Split(c.Processes[i].Command, " ")) > 0 {
+			c.Processes[i].Args = append(strings.Split(c.Processes[i].Command, " ")[:1], c.Processes[i].Args...)
+			c.Processes[i].Command = strings.Split(c.Processes[i].Command, " ")[0]
+		}
+		// Set general values
 		c.Processes[i].SeperateNewLines = c.SeperateNewLines
 		c.Processes[i].ShowTimestamp = c.ShowTimestamp
+		// Check for duplicate uniques
+		if uniqueChecks[c.Processes[i].Name] {
+			return errors.New("Config contains duplicate unique fields. Offending item: Name - " + c.Processes[i].Name)
+		} else {
+			uniqueChecks[c.Processes[i].Name] = true
+		}
+
 	}
 	color.HiBlack("%s]\n\n", outputString)
 	color.HiGreen("Processes %d waiting for triggers", waitCounter)
