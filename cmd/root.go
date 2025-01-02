@@ -66,7 +66,7 @@ using ctrl+c or input "exit" into the command line.
 		// Generate the contexts for all processes in the config
 		runContexts := config.GenerateRunTaskContexts(&wg)
 		// Link contexts with their triggers
-		err := pp.LinkProcessTriggers(&runContexts)
+		err := pp.LinkProcessTriggers(runContexts)
 		if err != nil {
 			return err
 		}
@@ -100,7 +100,7 @@ using ctrl+c or input "exit" into the command line.
 					}
 					input := s[1:]
 					for _, context := range runContexts {
-						if context.Process.Status == pp.ProcessStatusRunning {
+						if context.Status == pp.ProcessStatusRunning {
 							context.Write(strings.Join(input, ""))
 						}
 					}
@@ -116,7 +116,7 @@ using ctrl+c or input "exit" into the command line.
 						tbl := table.New("Index", "Name", "Prefix", "Command", "Status")
 						tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
 						for index, context := range runContexts {
-							tbl.AddRow(index, context.Process.Name, context.Process.Prefix, context.Process.Command, context.Process.GetStatusAsStr())
+							tbl.AddRow(index, context.Process.Name, context.Process.Prefix, context.Process.Command, context.GetStatusAsStr())
 						}
 						tbl.Print()
 						fmt.Println()
@@ -124,13 +124,9 @@ using ctrl+c or input "exit" into the command line.
 
 				case "exit":
 					fmt.Println("Exiting all")
-
 					for _, context := range runContexts {
-						if context.Process.Status == pp.ProcessStatusRunning {
-							context.BuzzkillProcess()
-						}
+						context.BuzzkillProcess()
 					}
-
 					break input_loop
 
 				default:
@@ -143,7 +139,7 @@ using ctrl+c or input "exit" into the command line.
 					for _, context := range runContexts {
 						if context.Process.Name == target || context.Process.Prefix == target {
 							found = true
-							if context.Process.Status == pp.ProcessStatusRunning {
+							if context.Status == pp.ProcessStatusRunning {
 								context.Write(strings.Join(input, ""))
 							} else {
 								fmt.Printf("The %s command has exited, cannot write to process\n", target)
