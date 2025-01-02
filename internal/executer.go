@@ -13,6 +13,7 @@ import (
 // Communication from task to main thread
 type (
 	ExecutionExitEvent int
+	ProcessStatus      int
 
 	// All contexts of running processes will have these fields
 	ExecutionContext struct {
@@ -28,10 +29,12 @@ type (
 		internalExitNotifiers    []chan bool               // All related internal goroutines should lock onto this notifier to exit when the process is killed
 		externalProcessNotifiers []chan ProcessStatus      // Allow external processes to hook into process notifications (running, failed, exited, restarting etc,)
 		externalExitNotifiers    []chan ExecutionExitEvent // Allow external processes to hook into true exit notifications (i.e. the process is no longer running)
-		triggers                 []chan bool
+		triggers                 []chan string
 		stdIn                    chan string
 		exitCode                 int
+		executionMutex           *sync.RWMutex
 		cancel                   bool
+		Status                   ProcessStatus
 	}
 )
 
@@ -41,17 +44,45 @@ const (
 	ExitEventBuzzkiller
 )
 
+const (
+	ProcessStatusNotStarted ProcessStatus = iota
+	ProcessStatusRunning
+	ProcessStatusExited
+	ProcessStatusFailed
+	ProcessStatusRestarting
+	ProcessStatusWaitingTrigger
+)
+
+func (c *ExecutionContext) GetStatusAsStr() string {
+	switch c.Status {
+	case ProcessStatusNotStarted:
+		return "Not started"
+	case ProcessStatusRunning:
+		return "Running"
+	case ProcessStatusExited:
+		return "Exited"
+	case ProcessStatusFailed:
+		return "Failed"
+	case ProcessStatusWaitingTrigger:
+		return "Waiting for trigger"
+	case ProcessStatusRestarting:
+		return "Restarting"
+	}
+	return "Unknown"
+}
+
 // Creates an execution context
-func (p *Process) CreateContext(wg *sync.WaitGroup) ExecutionContext {
-	context := ExecutionContext{
+func (p *Process) CreateContext(wg *sync.WaitGroup) *ExecutionContext {
+	context := &ExecutionContext{
 		Process:                  p,
 		wg:                       wg,
 		internalExitNotifiers:    make([]chan bool, 0),
 		externalProcessNotifiers: make([]chan ProcessStatus, 0),
 		externalExitNotifiers:    make([]chan ExecutionExitEvent, 0),
-		stdIn:                    make(chan string),
+		stdIn:                    make(chan string, 10),
 		buzzkillEmitters:         make([]chan bool, 0),
-		triggers:                 make([]chan bool, 0),
+		triggers:                 make([]chan string, 0),
+		executionMutex:           &sync.RWMutex{},
 	}
 
 	// Write into the command
@@ -69,27 +100,46 @@ func (p *Process) CreateContext(wg *sync.WaitGroup) ExecutionContext {
 
 // Returns a listening channel to listen for a buzzkill event comming FROM the process
 func (e *ExecutionContext) GetBuzkillEmitter() chan bool {
-	channel := make(chan bool)
+	e.executionMutex.Lock()
+	defer e.executionMutex.Unlock()
+
+	channel := make(chan bool, 10)
 	e.buzzkillEmitters = append(e.buzzkillEmitters, channel)
+	return channel
+}
+
+// Returns an output channel of the processes internal status (running, exiting, restarting, failing etc.)
+func (e *ExecutionContext) GetProcessNotificationChannel() chan ProcessStatus {
+	e.executionMutex.Lock()
+	defer e.executionMutex.Unlock()
+
+	channel := make(chan ProcessStatus, 10)
+	e.externalProcessNotifiers = append(e.externalProcessNotifiers, channel)
+	return channel
+}
+
+// Get an instance of the internal exit notifier channel that outputs a signal when the process is buzzkilled
+func (e *ExecutionContext) getInternalExitNotifier() chan bool {
+	e.executionMutex.Lock()
+	defer e.executionMutex.Unlock()
+
+	channel := make(chan bool, 10)
+	e.internalExitNotifiers = append(e.internalExitNotifiers, channel)
 	return channel
 }
 
 // Emits the buzzkill command FROM INSIDE the process
 func (e *ExecutionContext) emitBuzkill() {
-	if len(e.buzzkillEmitters) == 0 {
-		return
-	}
+	e.executionMutex.RLock()
+	defer e.executionMutex.RUnlock()
 
 	// Send external notifications
 	for _, channel := range e.buzzkillEmitters {
 		if channel != nil {
-			select {
-			case channel <- true:
-			default:
-				// Channel is not ready to receive, skip it
-			}
+			channel <- true
 		}
 	}
+
 	// Shut down process goroutines
 	e.BuzzkillProcess()
 }
@@ -97,64 +147,57 @@ func (e *ExecutionContext) emitBuzkill() {
 // Tell all goroutines related to this process to stop and exit
 func (e *ExecutionContext) BuzzkillProcess() {
 	e.cancel = true
-	if len(e.internalExitNotifiers) == 0 {
-		return
-	}
+	e.executionMutex.RLock()
+	defer e.executionMutex.RUnlock()
 
 	for _, channel := range e.internalExitNotifiers {
 		if channel != nil {
-			select {
-			case channel <- true:
-			default:
-				// Channel is not ready to receive, skip it
-			}
+			close(channel)
+		}
+	}
+
+	for _, channel := range e.externalProcessNotifiers {
+		if channel != nil {
+			close(channel)
+		}
+	}
+
+	for _, channel := range e.externalExitNotifiers {
+		if channel != nil {
+			close(channel)
 		}
 	}
 }
 
 // Updates the process status and sends external notifications of said status
 func (e *ExecutionContext) setProcessStatus(status ProcessStatus) {
-	e.Process.Status = status
+	e.executionMutex.RLock()
+	defer e.executionMutex.RUnlock()
+
+	e.Status = status
 	for _, channel := range e.externalProcessNotifiers {
 		if channel != nil {
-			select {
-			case channel <- status:
-			default:
-				// Channel is not ready to receive, skip it
-			}
+			channel <- status
 		}
 	}
-}
 
-// Returns an output channel of the processes internal status (running, exiting, restarting, failing etc.)
-func (e *ExecutionContext) GetProcessNotificationChannel() chan ProcessStatus {
-	channel := make(chan ProcessStatus)
-	e.externalProcessNotifiers = append(e.externalProcessNotifiers, channel)
-	return channel
-}
-
-// Get an instance of the internal exit notifier channel that outputs a signal when the process is buzzkilled
-func (e *ExecutionContext) getInternalExitNotifier() chan bool {
-	channel := make(chan bool)
-	e.internalExitNotifiers = append(e.internalExitNotifiers, channel)
-	return channel
 }
 
 func (e *ExecutionContext) handleProcessExit() {
 	exitCommand := ExitCommandWait
 	if e.exitEvent != ExitEventBuzzkilled {
-		if e.Process.Status == ProcessStatusFailed || e.Process.Status == ProcessStatusNotStarted {
+		if e.Status == ProcessStatusFailed || e.Status == ProcessStatusNotStarted {
 			e.errorWriter.Write([]byte("Process failed"))
 			exitCommand = e.Process.OnFailure
 		} else {
-			e.errorWriter.Write([]byte("Process exited"))
+			e.infoWriter.Write([]byte("Process exited"))
 			exitCommand = e.Process.OnComplete
 		}
 	}
 
 	switch exitCommand {
 	case ExitCommandBuzzkill:
-		e.errorWriter.Write([]byte("Buzzkilling"))
+		e.errorWriter.Write([]byte("Buzzkilling other processes"))
 		e.exitEvent = ExitEventBuzzkiller
 		e.emitBuzkill()
 	case ExitCommandRestart:
@@ -177,7 +220,7 @@ func (e *ExecutionContext) handleProcessExit() {
 		e.execute()
 
 	case ExitCommandWait:
-		e.BuzzkillProcess()
+		// e.BuzzkillProcess()
 	}
 
 }
@@ -186,10 +229,10 @@ func (e *ExecutionContext) Write(input string) {
 	e.stdIn <- input
 }
 
-func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []ExecutionContext {
+func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionContext {
 
 	// Create context and channel groups
-	contexts := []ExecutionContext{}
+	contexts := []*ExecutionContext{}
 
 	for index, process := range config.Processes {
 
@@ -197,13 +240,14 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []ExecutionCon
 		newContext := process.CreateContext(
 			wg,
 		)
-		contexts = append(contexts, newContext)
-		externalBuzzkill := newContext.getInternalExitNotifier()
-		internalBuzzkill := newContext.GetBuzkillEmitter()
+
 		// processNotificationChannel := newContext.GetProcessNotificationChannel()
 
 		// Start listening to the threads channels fo multi-channel communcation
 		go func() {
+			externalBuzzkill := newContext.getInternalExitNotifier()
+			internalBuzzkill := newContext.GetBuzkillEmitter()
+
 		monitorLoop:
 			for {
 				select {
@@ -220,8 +264,8 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []ExecutionCon
 					break monitorLoop
 				}
 			}
-
 		}()
+		contexts = append(contexts, newContext)
 	}
 
 	// Apply process triggers to contexts here
@@ -269,18 +313,20 @@ commandLoop:
 			timeout := time.Duration(c.Process.TimeoutOnExit) * time.Second
 			if c.cmd.Process != nil {
 				c.cmd.Process.Signal(os.Kill)
+			} else {
+				break commandLoop
 			}
+			time.Sleep(100 * time.Millisecond)
 			for {
 				elapsed := time.Since(startTime)
-
-				if elapsed > timeout {
-					c.infoWriter.Write([]byte("Gracefull shutdown timed out - killing process"))
-					if c.cmd.Process != nil {
-						c.cmd.Process.Kill()
-					}
+				if c.cmd.ProcessState != nil {
 					break
 				}
-				if c.cmd.ProcessState != nil {
+				if elapsed > timeout {
+					if c.cmd.Process != nil {
+						c.infoWriter.Write([]byte("Gracefull shutdown timed out - killing process"))
+						c.cmd.Process.Kill()
+					}
 					break
 				}
 				time.Sleep(10 * time.Millisecond)
@@ -289,33 +335,33 @@ commandLoop:
 			break commandLoop
 
 		default:
-			if c.cancel {
-				c.exitEvent = ExitEventBuzzkilled
-				c.infoWriter.Write([]byte("Recieved buzzkill command"))
-				// Wait for timeout_on_exit duration
-				startTime := time.Now()
-				timeout := time.Duration(c.Process.TimeoutOnExit) * time.Second
-				if c.cmd.Process != nil {
-					c.cmd.Process.Signal(os.Kill)
-				}
-				for {
-					elapsed := time.Since(startTime)
+			// if c.cancel {
+			// 	c.exitEvent = ExitEventBuzzkilled
+			// 	c.infoWriter.Write([]byte("Recieved buzzkill command"))
+			// 	// Wait for timeout_on_exit duration
+			// 	startTime := time.Now()
+			// 	timeout := time.Duration(c.Process.TimeoutOnExit) * time.Second
+			// 	if c.cmd.Process != nil {
+			// 		c.cmd.Process.Signal(os.Kill)
+			// 	}
+			// 	for {
+			// 		elapsed := time.Since(startTime)
 
-					if elapsed > timeout {
-						c.infoWriter.Write([]byte("Gracefull shutdown timed out - killing process"))
-						if c.cmd.Process != nil {
-							c.cmd.Process.Kill()
-						}
-						break
-					}
-					if c.cmd.ProcessState != nil {
-						break
-					}
-					time.Sleep(10 * time.Millisecond)
-				}
-				c.setProcessStatus(ProcessStatusExited)
-				break commandLoop
-			}
+			// 		if elapsed > timeout {
+			// 			c.infoWriter.Write([]byte("Gracefull shutdown timed out - killing process"))
+			// 			if c.cmd.Process != nil {
+			// 				c.cmd.Process.Kill()
+			// 			}
+			// 			break
+			// 		}
+			// 		if c.cmd.ProcessState != nil {
+			// 			break
+			// 		}
+			// 		time.Sleep(10 * time.Millisecond)
+			// 	}
+			// 	c.setProcessStatus(ProcessStatusExited)
+			// 	break commandLoop
+			// }
 			// Display the PID on the first line
 			if !displayedPid && c.cmd.Process != nil {
 				c.infoWriter.Write([]byte(fmt.Sprintf("PID = %d", c.cmd.Process.Pid)))
@@ -330,10 +376,9 @@ commandLoop:
 			}
 
 			// Handle the process exiting
-			if c.cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
+			if c.cmd.Process != nil && c.cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
 				if c.cmd.ProcessState.ExitCode() == 0 {
 					c.exitEvent = ExitEventInternal
-					c.setProcessStatus(ProcessStatusExited)
 				} else if c.cmd.ProcessState.ExitCode() > 0 {
 					c.errorWriter.Write([]byte("Detected Process failure"))
 					c.setProcessStatus(ProcessStatusFailed)
@@ -342,17 +387,15 @@ commandLoop:
 					c.errorWriter.Write([]byte(startErr.Error()))
 					c.setProcessStatus(ProcessStatusFailed)
 					c.exitEvent = ExitEventInternal
-				} else {
-					c.setProcessStatus(ProcessStatusExited)
 				}
 				c.exitCode = c.cmd.ProcessState.ExitCode()
 				c.cmd.Wait() // This is likely redundant as we listen up top, but best be sure
+				c.setProcessStatus(ProcessStatusExited)
 				break commandLoop
 			}
 
 			// Don't spin too hard
 			time.Sleep(10 * time.Millisecond)
-
 		}
 	}
 
@@ -370,34 +413,41 @@ func (e *ExecutionContext) end() {
 		e.readPipe.Close()
 	}
 	// This unfortunately needs to be there to let things settle properly
-	time.Sleep(time.Millisecond * 10)
+	time.Sleep(time.Millisecond * 100)
 	e.wg.Done()
 }
 
 func (e *ExecutionContext) Start() {
 	e.wg.Add(1)
+	exitNotifier := e.getInternalExitNotifier()
 
 	go func() {
-		buzzkill := e.getInternalExitNotifier()
-		// TODO: Check for process trigger here too
 		if len(e.triggers) == 0 {
 			e.execute()
 		} else {
+			e.setProcessStatus(ProcessStatusWaitingTrigger)
 		monitorLoop:
 			for {
 				for _, trigger := range e.triggers {
 					select {
-					case <-trigger:
+					case message, ok := <-trigger:
+						if !ok {
+							break monitorLoop
+						}
+						e.infoWriter.Printf("%s\n", message)
+						if e.Status != ProcessStatusExited {
+							break
+						}
 						e.execute()
 						// Break monitoring if buzzkill commited
 						if e.exitEvent != ExitEventInternal {
 							break monitorLoop
 						}
+						e.setProcessStatus(ProcessStatusWaitingTrigger)
 
-					case <-buzzkill:
+					case <-exitNotifier:
 						break monitorLoop
 					}
-
 				}
 			}
 		}

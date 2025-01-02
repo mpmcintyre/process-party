@@ -13,11 +13,10 @@ import (
 )
 
 type (
-	ExitCommand   string
-	ProcessStatus int
-	ProcessType   int
-	ColourCode    string
-	Verbosity     int
+	ExitCommand string
+	ProcessType int
+	ColourCode  string
+	Verbosity   int
 
 	FileSystemTrigger struct {
 		Watch          []string `toml:"watch" json:"watch" yaml:"watch"`                // List of directories/folders to watch
@@ -58,7 +57,6 @@ type (
 		TimeoutOnExit   int         `toml:"timeout_on_exit" json:"timeout_on_exit" yaml:"timeout_on_exit"`
 		// Runtime
 		ShowTimestamp bool
-		Status        ProcessStatus
 		Pid           string
 	}
 
@@ -78,15 +76,6 @@ const (
 	ExitCommandBuzzkill ExitCommand = "buzzkill"
 	ExitCommandWait     ExitCommand = "wait"
 	ExitCommandRestart  ExitCommand = "restart"
-)
-
-const (
-	ProcessStatusNotStarted ProcessStatus = iota
-	ProcessStatusRunning
-	ProcessStatusExited
-	ProcessStatusFailed
-	ProcessStatusRestarting
-	ProcessStatusWaitingTrigger
 )
 
 const (
@@ -133,22 +122,6 @@ func (p *Process) HasProcessTrigger() bool {
 
 func (t *Process) HasTrigger() bool {
 	return t.HasFsTrigger() || t.HasProcessTrigger()
-}
-
-func (c *Process) GetStatusAsStr() string {
-	switch c.Status {
-	case ProcessStatusNotStarted:
-		return "Not started"
-	case ProcessStatusRunning:
-		return "Running"
-	case ProcessStatusExited:
-		return "Exited"
-	case ProcessStatusFailed:
-		return "Failed"
-	case ProcessStatusWaitingTrigger:
-		return "Waitinf for trigger"
-	}
-	return "Unknown"
 }
 
 func CreateConfig() *Config {
@@ -274,7 +247,7 @@ func (c *Config) ParseFile(path string) error {
 
 	}
 	color.HiBlack("%s]\n\n", outputString)
-	color.HiGreen("Processes %d waiting for triggers", waitCounter)
+	color.HiGreen("%d processes waiting for triggers", waitCounter)
 	if waitCounter > 0 {
 		color.HiBlack("%s]\n\n", waitingString)
 	}

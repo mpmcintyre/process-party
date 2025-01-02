@@ -9,8 +9,8 @@ command = "cmd"
 prefix = "FRONT"
 color = "green"
 on_failure = "buzzkill"
-on_complete = "wait"
-stdin_on_start = "echo hello\n"
+on_complete =  "wait"
+stdin_on_start = "echo hello\nexit"
 
 [[processes]]
 name = "example fail"
@@ -24,27 +24,24 @@ on_complete = "restart"
 restart_attempts = 3
 silent = false
 
-[[watch]]
-name = "example fail"
+[[processes]]
+name = "example fail2"
 command = "go"
 show_pid = false
 args = ["run", "main.go"]
-prefix = "BACK"
-color = "blue"
+prefix = "TRIG"
+color = "yellow"
 on_failure = "restart"
 on_complete = "restart"
 restart_attempts = 3
 silent = false
   [processes.trigger]
-    [processes.trigger.filesystem]
-      watch = ["test"]
-      ignore = ["test"]
-      filter_for = ["*.test"]
+    # [processes.trigger.filesystem]
+    #   watch = ["."]
+    #   ignore = ["test"]
+    #   filter_for = ["*.test"]
     [processes.trigger.process]
-      on_start = ["test"]
-      on_end = ["test"]
-      on_complete = ["test"]
-      on_error = ["test"]
+      on_start = ["example fail"]
 
 # [[processes]]
 # name = "example fail2"

@@ -25,7 +25,6 @@ func createWaitProcess(command string, args []string, startDelay int) pp.Process
 
 		Color:      tpColour,
 		DisplayPid: true,
-		Status:     pp.ProcessStatusRunning,
 		Silent:     true,
 		// These must be set by the config file not the process
 		ShowTimestamp:    false,
@@ -52,7 +51,6 @@ func createRestartProcess(command string, args []string, restartAttempts int, re
 		Prefix:     "restart",
 		Color:      tpColour,
 		DisplayPid: true,
-		Status:     pp.ProcessStatusRunning,
 		Silent:     true,
 		// These must be set by the config file not the process
 		ShowTimestamp:    true,
@@ -79,7 +77,6 @@ func createBuzzkillProcess(command string, args []string) pp.Process {
 		Prefix:     "buzzkill",
 		Color:      tpColour,
 		DisplayPid: true,
-		Status:     pp.ProcessStatusRunning,
 		Silent:     true,
 		// These must be set by the config file not the process
 		ShowTimestamp:    false,
@@ -159,22 +156,48 @@ func TestWait(t *testing.T) {
 	context := completeTask.CreateContext(
 		&wg,
 	)
-	notificationChannel := context.GetProcessNotificationChannel()
+
 	buzzkilled := false
 	bkChan := context.GetBuzkillEmitter()
+	// Checks for signals
+	notificationChannel := context.GetProcessNotificationChannel()
+	var exitRecieved atomic.Bool
+	var failedRecieved atomic.Bool
+	var startRecieved atomic.Bool
+	var restartRecieved atomic.Bool
+	var notStartedRecieved atomic.Bool
+	var unknownRecieved atomic.Bool
+
 	go func() {
-		value := <-notificationChannel
-		switch value {
-		case pp.ProcessStatusExited:
-			t.Log("EOC recieved")
-		case pp.ProcessStatusFailed:
-			t.Log("Failure signal recieved")
-		case pp.ProcessStatusRunning:
-			t.Log("Process started running")
-		case pp.ProcessStatusRestarting:
-			t.Log("Process signalled restarting")
+		for {
+			value, ok := <-notificationChannel
+			if ok {
+				switch value {
+				case pp.ProcessStatusExited:
+					exitRecieved.Store(true)
+					t.Log("EOC recieved")
+				case pp.ProcessStatusFailed:
+					failedRecieved.Store(true)
+					t.Log("Failure signal recieved")
+				case pp.ProcessStatusRunning:
+					startRecieved.Store(true)
+					t.Log("Process started running")
+				case pp.ProcessStatusRestarting:
+					restartRecieved.Store(true)
+					t.Log("Process signalled restarting")
+				case pp.ProcessStatusNotStarted:
+					notStartedRecieved.Store(true)
+					t.Log("Process signalled not started")
+				default:
+					unknownRecieved.Store(true)
+				}
+			} else {
+				break
+			}
 		}
+
 	}()
+
 	go func() {
 		buzzkilled = <-bkChan
 		t.Log("Buzkill recieved")
@@ -184,16 +207,19 @@ func TestWait(t *testing.T) {
 	t1 := time.Now()
 
 	wg.Wait()
-	if time.Since(t1) < time.Duration(sleepDuration) {
-		t.Fatal("Process did not run to completion")
-	}
-	if buzzkilled {
-		t.Fatal("Context recieved buzzkill")
 
-	}
-	if context.Process.Status == pp.ProcessStatusRunning {
-		t.Fatal("Context run status is still running.")
-	}
+	// Status checks
+	assert.True(t, exitRecieved.Load())
+	assert.False(t, failedRecieved.Load())
+	assert.True(t, startRecieved.Load())
+	assert.False(t, restartRecieved.Load())
+	assert.True(t, notStartedRecieved.Load())
+	assert.False(t, unknownRecieved.Load())
+	// Runtime check
+	assert.Greater(t, time.Since(t1), time.Duration(sleepDuration))
+	assert.False(t, buzzkilled)
+	assert.Equal(t, context.Status, pp.ProcessStatusExited)
+
 }
 
 func TestRestart(t *testing.T) {
@@ -207,27 +233,54 @@ func TestRestart(t *testing.T) {
 	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
 	sleepTask := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, 0)
 	sleepTask.Silent = true
+	sleepTask.DisplayPid = false
 
 	context := sleepTask.CreateContext(
 		&wg,
 	)
-	notificationChannel := context.GetProcessNotificationChannel()
 	buzzkilled := false
 	bkChan := context.GetBuzkillEmitter()
+	// Checks for signals
+	notificationChannel := context.GetProcessNotificationChannel()
+	var exitRecieved atomic.Bool
+	var failedRecieved atomic.Bool
+	var startRecieved atomic.Bool
+	var restartRecieved atomic.Bool
+	var notStartedRecieved atomic.Bool
+	var unknownRecieved atomic.Bool
+	processRunCounter := 0
+
 	go func() {
-		value := <-notificationChannel
-		switch value {
-		case pp.ProcessStatusExited:
-			t.Log("EOC recieved")
-		case pp.ProcessStatusFailed:
-			t.Log("Failure signal recieved")
-		case pp.ProcessStatusRunning:
-			t.Log("Process started running")
-		case pp.ProcessStatusRestarting:
-			t.Log("Process signalled restarting")
+		for {
+			value, ok := <-notificationChannel
+			if ok {
+				switch value {
+				case pp.ProcessStatusExited:
+					exitRecieved.Store(true)
+					t.Log("EOC recieved")
+				case pp.ProcessStatusFailed:
+					failedRecieved.Store(true)
+					t.Log("Failure signal recieved")
+				case pp.ProcessStatusRunning:
+					processRunCounter++
+					startRecieved.Store(true)
+					t.Log("Process started running")
+				case pp.ProcessStatusRestarting:
+					restartRecieved.Store(true)
+					t.Log("Process signalled restarting")
+				case pp.ProcessStatusNotStarted:
+					notStartedRecieved.Store(true)
+					t.Log("Process signalled not started")
+				default:
+					unknownRecieved.Store(true)
+				}
+			} else {
+				break
+			}
 		}
 
 	}()
+
 	go func() {
 		buzzkilled = <-bkChan
 		t.Log("Buzkill recieved")
@@ -237,16 +290,18 @@ func TestRestart(t *testing.T) {
 	t1 := time.Now()
 
 	wg.Wait()
-	if time.Since(t1) < time.Duration(sleepDuration*restartAttempts)*time.Second {
-		t.Fatal("Process did not run to completion")
-	}
-	if buzzkilled {
-		t.Fatal("Context recieved buzzkill")
 
-	}
-	if context.Process.Status == pp.ProcessStatusRunning {
-		t.Fatal("Context run status is still running.")
-	}
+	assert.True(t, exitRecieved.Load())
+	assert.False(t, failedRecieved.Load())
+	assert.True(t, startRecieved.Load())
+	assert.True(t, restartRecieved.Load())
+	assert.True(t, notStartedRecieved.Load())
+	assert.False(t, unknownRecieved.Load())
+
+	assert.Equal(t, restartAttempts, processRunCounter)
+	assert.Greater(t, time.Since(t1), time.Duration(sleepDuration))
+	assert.False(t, buzzkilled)
+	assert.Equal(t, pp.ProcessStatusExited, context.Status)
 }
 
 func TestRestartWithDelays(t *testing.T) {
@@ -265,20 +320,44 @@ func TestRestartWithDelays(t *testing.T) {
 	context := restartTask.CreateContext(
 		&wg,
 	)
-	notificationChannel := context.GetProcessNotificationChannel()
+
 	buzzkilled := false
 	bkChan := context.GetBuzkillEmitter()
+	// Checks for signals
+	notificationChannel := context.GetProcessNotificationChannel()
+	var exitRecieved atomic.Bool
+	var failedRecieved atomic.Bool
+	var startRecieved atomic.Bool
+	var restartRecieved atomic.Bool
+	var notStartedRecieved atomic.Bool
+	var unknownRecieved atomic.Bool
+
 	go func() {
-		value := <-notificationChannel
-		switch value {
-		case pp.ProcessStatusExited:
-			t.Log("EOC recieved")
-		case pp.ProcessStatusFailed:
-			t.Log("Failure signal recieved")
-		case pp.ProcessStatusRunning:
-			t.Log("Process started running")
-		case pp.ProcessStatusRestarting:
-			t.Log("Process signalled restarting")
+		for {
+			value, ok := <-notificationChannel
+			if ok {
+				switch value {
+				case pp.ProcessStatusExited:
+					exitRecieved.Store(true)
+					t.Log("EOC recieved")
+				case pp.ProcessStatusFailed:
+					failedRecieved.Store(true)
+					t.Log("Failure signal recieved")
+				case pp.ProcessStatusRunning:
+					startRecieved.Store(true)
+					t.Log("Process started running")
+				case pp.ProcessStatusRestarting:
+					restartRecieved.Store(true)
+					t.Log("Process signalled restarting")
+				case pp.ProcessStatusNotStarted:
+					notStartedRecieved.Store(true)
+					t.Log("Process signalled not started")
+				default:
+					unknownRecieved.Store(true)
+				}
+			} else {
+				break
+			}
 		}
 
 	}()
@@ -290,16 +369,17 @@ func TestRestartWithDelays(t *testing.T) {
 	context.Start()
 	t1 := time.Now()
 	wg.Wait()
-	if time.Since(t1) < time.Duration(restartDelay*restartAttempts)*time.Second {
-		t.Fatal("Process did not run to completion")
-	}
-	if buzzkilled {
-		t.Fatal("Context recieved buzzkill")
 
-	}
-	if context.Process.Status == pp.ProcessStatusRunning {
-		t.Fatal("Context run status is still running.")
-	}
+	assert.True(t, exitRecieved.Load())
+	assert.True(t, failedRecieved.Load())
+	assert.True(t, startRecieved.Load())
+	assert.True(t, restartRecieved.Load())
+	assert.True(t, notStartedRecieved.Load())
+	assert.False(t, unknownRecieved.Load())
+
+	assert.Greater(t, time.Since(t1), time.Duration(restartDelay*restartAttempts)*time.Second)
+	assert.False(t, buzzkilled)
+	assert.Equal(t, pp.ProcessStatusExited, context.Status)
 }
 
 func TestStartDelay(t *testing.T) {
@@ -320,22 +400,45 @@ func TestStartDelay(t *testing.T) {
 	context := waitTask.CreateContext(
 		&wg,
 	)
-	notificationChannel := context.GetProcessNotificationChannel()
+
 	buzzkilled := false
 	bkChan := context.GetBuzkillEmitter()
-	go func() {
-		value := <-notificationChannel
-		switch value {
-		case pp.ProcessStatusExited:
-			t.Log("EOC recieved")
-		case pp.ProcessStatusFailed:
-			t.Log("Failure signal recieved")
-		case pp.ProcessStatusRunning:
-			t.Log("Process started running")
-		case pp.ProcessStatusRestarting:
-			t.Log("Process signalled restarting")
-		}
+	// Checks for signals
+	notificationChannel := context.GetProcessNotificationChannel()
+	var exitRecieved atomic.Bool
+	var failedRecieved atomic.Bool
+	var startRecieved atomic.Bool
+	var restartRecieved atomic.Bool
+	var notStartedRecieved atomic.Bool
+	var unknownRecieved atomic.Bool
 
+	go func() {
+		for {
+			value, ok := <-notificationChannel
+			if ok {
+				switch value {
+				case pp.ProcessStatusExited:
+					exitRecieved.Store(true)
+					t.Log("EOC recieved")
+				case pp.ProcessStatusFailed:
+					failedRecieved.Store(true)
+					t.Log("Failure signal recieved")
+				case pp.ProcessStatusRunning:
+					startRecieved.Store(true)
+					t.Log("Process started running")
+				case pp.ProcessStatusRestarting:
+					restartRecieved.Store(true)
+					t.Log("Process signalled restarting")
+				case pp.ProcessStatusNotStarted:
+					notStartedRecieved.Store(true)
+					t.Log("Process signalled not started")
+				default:
+					unknownRecieved.Store(true)
+				}
+			} else {
+				break
+			}
+		}
 	}()
 	go func() {
 		buzzkilled = <-bkChan
@@ -345,13 +448,21 @@ func TestStartDelay(t *testing.T) {
 	context.Start()
 	t1 := time.Now()
 	wg.Wait()
+
+	assert.True(t, exitRecieved.Load())
+	assert.False(t, failedRecieved.Load())
+	assert.True(t, startRecieved.Load())
+	assert.False(t, restartRecieved.Load())
+	assert.True(t, notStartedRecieved.Load())
+	assert.False(t, unknownRecieved.Load())
+
 	if time.Since(t1) < time.Duration(sleepDuration) {
 		t.Fatal("Process did not run to completion")
 	}
 	if buzzkilled {
 		t.Fatal("Context recieved buzzkill")
 	}
-	if context.Process.Status == pp.ProcessStatusRunning {
+	if context.Status == pp.ProcessStatusRunning {
 		t.Fatal("Context run status is still running.")
 	}
 }

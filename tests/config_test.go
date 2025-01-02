@@ -37,7 +37,6 @@ func createRunTask(increment int, nameStamp string) pp.Process {
 		Color:           tpColour,
 		DisplayPid:      true,
 		StartStream:     startStream,
-		Status:          pp.ProcessStatusRunning,
 		Pid:             tpPID,
 		Silent:          true,
 		// These must be set by the config file not the process
