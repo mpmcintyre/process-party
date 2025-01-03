@@ -35,6 +35,7 @@ type (
 		executionMutex           *sync.RWMutex
 		cancel                   bool
 		Status                   ProcessStatus
+		restartCounter           int
 	}
 )
 
@@ -90,10 +91,6 @@ func (p *Process) CreateContext(wg *sync.WaitGroup) *ExecutionContext {
 	context.errorWriter = &customWriter{w: os.Stdout, severity: "error", process: context.Process} // Write errors out
 	// Set IO
 	context.readPipe, context.writePipe = io.Pipe()
-	fsTrigger := context.CreateFsTrigger()
-	if fsTrigger != nil {
-		context.triggers = append(context.triggers, fsTrigger)
-	}
 
 	return context
 }
@@ -201,18 +198,18 @@ func (e *ExecutionContext) handleProcessExit() {
 		e.exitEvent = ExitEventBuzzkiller
 		e.emitBuzkill()
 	case ExitCommandRestart:
-		// We cannot reuse the c.cmd, so we use recursion with counters
-		// Remove one attempt (negative numbers imply to always restart)
-		if e.Process.RestartAttempts+1 > 0 {
-			e.Process.RestartAttempts = e.Process.RestartAttempts - 1
-		}
 
-		if e.Process.RestartAttempts == 0 {
+		e.restartCounter++
+
+		if e.restartCounter >= e.Process.RestartAttempts && e.Process.RestartAttempts >= 0 {
 			e.infoWriter.Write([]byte("No restart attempts left, exiting"))
 			return
 		}
+
 		e.setProcessStatus(ProcessStatusRestarting)
-		e.infoWriter.Write([]byte(fmt.Sprintf("Process exited - Restarting, %d second restart delay, %d attempts remaining", e.Process.RestartDelay, e.Process.RestartAttempts)))
+		if e.Process.RestartAttempts > 0 {
+			e.infoWriter.Write([]byte(fmt.Sprintf("Process exited - Restarting, %d second restart delay, %d attempts remaining", e.Process.RestartDelay, e.Process.RestartAttempts-e.restartCounter)))
+		}
 		if e.Process.RestartDelay > 0 {
 			time.Sleep(time.Duration(e.Process.RestartDelay) * time.Second)
 		}
@@ -335,33 +332,7 @@ commandLoop:
 			break commandLoop
 
 		default:
-			// if c.cancel {
-			// 	c.exitEvent = ExitEventBuzzkilled
-			// 	c.infoWriter.Write([]byte("Recieved buzzkill command"))
-			// 	// Wait for timeout_on_exit duration
-			// 	startTime := time.Now()
-			// 	timeout := time.Duration(c.Process.TimeoutOnExit) * time.Second
-			// 	if c.cmd.Process != nil {
-			// 		c.cmd.Process.Signal(os.Kill)
-			// 	}
-			// 	for {
-			// 		elapsed := time.Since(startTime)
 
-			// 		if elapsed > timeout {
-			// 			c.infoWriter.Write([]byte("Gracefull shutdown timed out - killing process"))
-			// 			if c.cmd.Process != nil {
-			// 				c.cmd.Process.Kill()
-			// 			}
-			// 			break
-			// 		}
-			// 		if c.cmd.ProcessState != nil {
-			// 			break
-			// 		}
-			// 		time.Sleep(10 * time.Millisecond)
-			// 	}
-			// 	c.setProcessStatus(ProcessStatusExited)
-			// 	break commandLoop
-			// }
 			// Display the PID on the first line
 			if !displayedPid && c.cmd.Process != nil {
 				c.infoWriter.Write([]byte(fmt.Sprintf("PID = %d", c.cmd.Process.Pid)))
@@ -422,35 +393,46 @@ func (e *ExecutionContext) Start() {
 	exitNotifier := e.getInternalExitNotifier()
 
 	go func() {
+		defer e.end()
+
 		if len(e.triggers) == 0 {
 			e.execute()
-		} else {
-			e.setProcessStatus(ProcessStatusWaitingTrigger)
-		monitorLoop:
-			for {
-				for _, trigger := range e.triggers {
-					select {
-					case message, ok := <-trigger:
-						if !ok {
-							break monitorLoop
-						}
-						e.infoWriter.Printf("%s\n", message)
-						if e.Status != ProcessStatusExited {
-							break
-						}
-						e.execute()
-						// Break monitoring if buzzkill commited
-						if e.exitEvent != ExitEventInternal {
-							break monitorLoop
-						}
-						e.setProcessStatus(ProcessStatusWaitingTrigger)
+			return
+		}
 
-					case <-exitNotifier:
-						break monitorLoop
-					}
+		e.setProcessStatus(ProcessStatusWaitingTrigger)
+		// Start a goroutine for each trigger to forward messages
+		triggerChan := make(chan string)
+		for _, trigger := range e.triggers {
+			go func(t chan string) {
+				for msg := range t {
+					triggerChan <- msg
 				}
+			}(trigger)
+		}
+
+	monitorLoop:
+		for {
+			select {
+			case message := <-triggerChan:
+				e.infoWriter.Printf("%s\n", message)
+				if e.Status != ProcessStatusWaitingTrigger {
+					e.errorWriter.Printf("Can't start process, process is already running")
+					continue
+				}
+
+				e.execute()
+
+				if e.exitEvent != ExitEventInternal {
+					break monitorLoop
+				}
+
+				e.setProcessStatus(ProcessStatusWaitingTrigger)
+				time.Sleep(time.Duration(10) * time.Millisecond)
+
+			case <-exitNotifier:
+				break monitorLoop
 			}
 		}
-		e.end()
 	}()
 }

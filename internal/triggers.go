@@ -4,35 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 )
 
 func (c *ExecutionContext) fileFilter() func(string) bool {
-	// Convert glob patterns to regular expressions
-	convertGlobToRegex := func(pattern string) string {
-		// Escape special regex characters except *
-		special := []string{".", "+", "?", "^", "$", "[", "]", "(", ")", "{", "}", "\\", "|"}
-		for _, ch := range special {
-			pattern = strings.ReplaceAll(pattern, ch, "\\"+ch)
-		}
-		// Convert glob * to regex .*
-		pattern = strings.ReplaceAll(pattern, "*", ".*")
-		return "^" + pattern + "$"
-	}
-
-	// Precompile patterns for better performance
-	includePatterns := make([]string, len(c.Process.Trigger.FileSystem.ContainFilters))
-	for i, pattern := range c.Process.Trigger.FileSystem.ContainFilters {
-		includePatterns[i] = convertGlobToRegex(pattern)
-	}
-
-	excludePatterns := make([]string, len(c.Process.Trigger.FileSystem.Ignore))
-	for i, pattern := range c.Process.Trigger.FileSystem.Ignore {
-		excludePatterns[i] = convertGlobToRegex(pattern)
-	}
-
 	return func(path string) bool {
 		// First check exact matches in included items
 		for _, item := range c.Process.Trigger.FileSystem.Watch {
@@ -49,7 +26,7 @@ func (c *ExecutionContext) fileFilter() func(string) bool {
 		}
 
 		// Check if path matches any of the exclude patterns
-		for _, pattern := range excludePatterns {
+		for _, pattern := range c.Process.Trigger.FileSystem.Ignore {
 			matched, err := filepath.Match(pattern, filepath.Base(path))
 			if err == nil && matched {
 				return false
@@ -57,28 +34,33 @@ func (c *ExecutionContext) fileFilter() func(string) bool {
 		}
 
 		// Finally, check if path matches any of the include patterns
-		for _, pattern := range includePatterns {
+		for _, pattern := range c.Process.Trigger.FileSystem.ContainFilters {
 			matched, err := filepath.Match(pattern, filepath.Base(path))
 			if err == nil && matched {
 				return true
 			}
 		}
 
-		return false
+		// If we are looking for specific files and we reach here we did not find any, else we can use it
+		return len(c.Process.Trigger.FileSystem.ContainFilters) == 0
 	}
 }
 
-func (c *ExecutionContext) CreateFsTrigger() chan string {
+func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
+
+	if len(c.Process.Trigger.FileSystem.Watch) <= 0 {
+		return nil, nil
+	}
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		c.errorWriter.Write([]byte("File/Directory does not exist"))
-		return nil
+		return nil, err
 	}
 
-	if len(c.Process.Trigger.FileSystem.Watch) == 0 {
-		watcher.Close()
-		return nil
+	if c.Process.RestartAttempts != 0 {
+		c.errorWriter.Printf("Process contains a trigger and restart attempts")
+		return nil, errors.New("Restarting triggered processes can lead to undesired behaviour. Remove triggers or restart attempts on process [" + c.Process.Name + "]")
 	}
 
 	for _, item := range c.Process.Trigger.FileSystem.Watch {
@@ -86,7 +68,7 @@ func (c *ExecutionContext) CreateFsTrigger() chan string {
 		if err != nil {
 			c.errorWriter.Write([]byte("File/Directory does not exist: " + item))
 			watcher.Close()
-			return nil
+			return nil, err
 		}
 	}
 
@@ -96,6 +78,9 @@ func (c *ExecutionContext) CreateFsTrigger() chan string {
 
 	// Start file watcher
 	go func() {
+		debounceTimer := time.Now()
+		debounceTime := 50 // 50 ms
+
 		for {
 			select {
 			case event, ok := <-watcher.Events:
@@ -104,8 +89,10 @@ func (c *ExecutionContext) CreateFsTrigger() chan string {
 					watcher.Close()
 					return
 				}
-				if filter(event.Name) {
+
+				if filter(event.Name) && time.Since(debounceTimer) > time.Duration(debounceTime)*time.Millisecond {
 					trigger <- fmt.Sprintf("FS trigger captured - %s\n", event.String())
+					debounceTimer = time.Now()
 				}
 
 			case err, ok := <-watcher.Errors:
@@ -121,7 +108,7 @@ func (c *ExecutionContext) CreateFsTrigger() chan string {
 		}
 	}()
 
-	return trigger
+	return trigger, nil
 }
 
 func (e *ExecutionContext) CreateProcessTrigger(signal ProcessStatus, message string) chan string {
@@ -160,6 +147,19 @@ func contains(arr []string, target string) bool {
 
 // Links process triggers together
 func LinkProcessTriggers(contexts []*ExecutionContext) error {
+	// Filesystem triggers
+	for _, context := range contexts {
+		fsTrigger, err := context.CreateFsTrigger()
+		if err != nil {
+			return err
+		}
+		if fsTrigger != nil {
+			context.triggers = append(context.triggers, fsTrigger)
+		}
+	}
+
+	// Process triggers
+
 	// Create a map for quick access and checking circular triggers
 	x := map[string]*ExecutionContext{}
 	for _, context := range contexts {
@@ -167,6 +167,7 @@ func LinkProcessTriggers(contexts []*ExecutionContext) error {
 	}
 
 	applyTriggers := func(triggers []string, signal ProcessStatus, context *ExecutionContext) error {
+
 		for _, process := range triggers {
 			if value, exists := x[process]; exists {
 				if contains(value.Process.Trigger.Process.OnComplete, process) {
@@ -186,6 +187,10 @@ func LinkProcessTriggers(contexts []*ExecutionContext) error {
 			} else {
 				return errors.New("Specified target process for trigger does not exist on " + context.Process.Name + ", Non existant trigger = " + process)
 			}
+		}
+		if len(triggers) > 0 && context.Process.RestartAttempts != 0 {
+			context.errorWriter.Printf("Process contains a trigger and restart attempts")
+			return errors.New("Restarting triggered processes can lead to undesired behaviour. Remove triggers or restart attempts on process [" + context.Process.Name + "]")
 		}
 		return nil
 	}
