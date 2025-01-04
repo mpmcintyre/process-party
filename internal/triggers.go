@@ -3,7 +3,9 @@ package pp
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -46,6 +48,33 @@ func (c *ExecutionContext) fileFilter() func(string) bool {
 	}
 }
 
+func (c *ExecutionContext) recursivelyWatch(event fsnotify.Event, watcher *fsnotify.Watcher) {
+	if c.Process.Trigger.FileSystem.NonRecursive {
+		return
+	}
+
+	if event.Op == fsnotify.Create {
+		parentPath := filepath.Dir(event.Name)
+		dirs, err := os.ReadDir(parentPath)
+		if err != nil {
+			c.errorWriter.Write([]byte(fmt.Sprintf("Could not read directory %s, %s", event.Name, err.Error())))
+		} else {
+			for _, dir := range dirs {
+				dirEntries := strings.Split(event.Name, string(os.PathSeparator))
+				if dir.Name() == dirEntries[len(dirEntries)-1] && dir.Type().IsDir() {
+					c.infoWriter.Write([]byte(fmt.Sprintf("A new subdirectory was created in FS watcher, monitoring %s", event.Name)))
+					err := watcher.Add(event.Name)
+					if err != nil {
+						c.errorWriter.Write([]byte(fmt.Sprintf("Could not monitor file, error: %s", err.Error())))
+					}
+
+				}
+			}
+		}
+	}
+}
+
+// This creates a trigger that watches any directories and recursive subdirectories
 func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 
 	if len(c.Process.Trigger.FileSystem.Watch) <= 0 {
@@ -79,7 +108,7 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 	// Start file watcher
 	go func() {
 		debounceTimer := time.Now()
-		debounceTime := 20 // 50 ms
+		debounceTime := 5 // 5 ms
 
 		for {
 			select {
@@ -91,6 +120,8 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 				}
 
 				if filter(event.Name) && time.Since(debounceTimer) > time.Duration(debounceTime)*time.Millisecond {
+					c.recursivelyWatch(event, watcher)
+
 					trigger <- fmt.Sprintf("FS trigger captured - %s\n", event.String())
 					debounceTimer = time.Now()
 				}
@@ -101,8 +132,10 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 					watcher.Close()
 					return
 				}
-			case <-exitChannel:
-				watcher.Close()
+			case _, ok := <-exitChannel:
+				if !ok {
+					watcher.Close()
+				}
 				return
 			}
 		}

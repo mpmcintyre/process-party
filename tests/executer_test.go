@@ -304,7 +304,7 @@ func TestRestartWithDelays(t *testing.T) {
 
 	// Test that each one works by creating a file with the name of the process
 	restartDelay := 1 // Seconds
-	restartAttempts := 3
+	restartAttempts := 4
 
 	cmdSettings := testHelpers.CreateFailCmdSettings()
 	restartTask := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, restartDelay)
@@ -369,7 +369,8 @@ func TestRestartWithDelays(t *testing.T) {
 	assert.False(t, waitingForTriggerRecieved.Load(), "Should not recieve waiting status")
 	assert.False(t, unknownRecieved.Load(), "Should not recieve unknown status")
 
-	assert.Greater(t, time.Since(t1), time.Duration(restartDelay*restartAttempts)*time.Second, "Should take longer than run duration with restart delays")
+	// There is no delay on the starting process, so minus one
+	assert.Greater(t, time.Since(t1), time.Duration(restartDelay*restartAttempts-1)*time.Second, "Should take longer than run duration with restart delays")
 	assert.False(t, buzzkilled, "Should not emit buzzkill during test")
 	assert.Equal(t, pp.ProcessStatusExited, context.Status, "Final status should be exited")
 }

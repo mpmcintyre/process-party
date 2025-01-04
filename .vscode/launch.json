@@ -5,7 +5,16 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Go with Arguments",
+      "name": "Debug Tests",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${workspaceFolder}/tests",
+      "args": ["-test.v"],
+      "showLog": true
+    },
+    {
+      "name": "App",
       "type": "go",
       "request": "launch",
       "mode": "auto",

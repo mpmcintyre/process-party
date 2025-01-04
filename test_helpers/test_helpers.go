@@ -1,6 +1,9 @@
 package testHelpers
 
-import "fmt"
+import (
+	"fmt"
+	"runtime"
+)
 
 type CmdSettings struct {
 	Cmd  string
@@ -9,29 +12,52 @@ type CmdSettings struct {
 
 // Exported functions
 func CreateSleepCmdSettings(sleepDurationSeconds int) CmdSettings {
+	currentOS := runtime.GOOS
+	command := "mocks/build/fake_process"
+	if currentOS == "windows" {
+		command += ".exe"
+	}
 	return CmdSettings{
-		Cmd:  "go",
-		Args: []string{"run", "./mocks/fake_process.go", "sleep", fmt.Sprintf("%d", sleepDurationSeconds)},
+		Cmd:  command,
+		Args: []string{"sleep", fmt.Sprintf("%d", sleepDurationSeconds)},
 	}
 }
 
 func CreateTouchCmdSettings(filename string) CmdSettings {
+	currentOS := runtime.GOOS
+	command := "mocks/build/fake_process"
+	if currentOS == "windows" {
+		command += ".exe"
+	}
+
 	return CmdSettings{
-		Cmd:  "go",
-		Args: []string{"run", "./mocks/fake_process.go", "touch", filename},
+		Cmd:  command,
+		Args: []string{"touch", filename},
 	}
 }
 
 func CreateMkdirCmdSettings(dirname string) CmdSettings {
+	currentOS := runtime.GOOS
+	command := "mocks/build/fake_process"
+	if currentOS == "windows" {
+		command += ".exe"
+	}
+
 	return CmdSettings{
-		Cmd:  "go",
-		Args: []string{"run", "./mocks/fake_process.go", "mkdir", dirname},
+		Cmd:  command,
+		Args: []string{"mkdir", dirname},
 	}
 }
 
 func CreateFailCmdSettings() CmdSettings {
+	currentOS := runtime.GOOS
+	command := "mocks/build/fake_process"
+	if currentOS == "windows" {
+		command += ".exe"
+	}
+
 	return CmdSettings{
-		Cmd:  "go",
-		Args: []string{"run", "./mocks/fake_process.go", "fail"},
+		Cmd:  command,
+		Args: []string{"fail"},
 	}
 }

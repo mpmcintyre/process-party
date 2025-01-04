@@ -44,6 +44,7 @@ func createRunTask(increment int, nameStamp string) pp.Process {
 		SeperateNewLines: false,
 		Trigger: pp.Trigger{
 			FileSystem: pp.FileSystemTrigger{
+				NonRecursive:   true,
 				Watch:          []string{"test"},
 				Ignore:         []string{"test"},
 				ContainFilters: []string{"test"},

@@ -241,7 +241,9 @@ func (e *ExecutionContext) handleProcessExit() {
 		e.execute()
 
 	case ExitCommandWait:
-		// e.BuzzkillProcess()
+		if len(e.triggers) == 0 {
+			e.BuzzkillProcess()
+		}
 	}
 
 }
@@ -266,16 +268,15 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionCo
 
 		// Start listening to the threads channels fo multi-channel communcation
 		go func() {
-			externalBuzzkill := newContext.getInternalExitNotifier()
-			internalBuzzkill := newContext.GetBuzkillEmitter()
+			externalKillCommand := newContext.getInternalExitNotifier()
+			buzzKillEmitter := newContext.GetBuzkillEmitter()
 
 		monitorLoop:
 			for {
 				select {
-				case _, ok := <-internalBuzzkill:
+				case _, ok := <-buzzKillEmitter:
 					if ok {
 						for i := range len(config.Processes) {
-							// Send to all other channels (not including this one)
 							if i != index {
 								contexts[i].BuzzkillProcess()
 							}
@@ -283,7 +284,7 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionCo
 					}
 					break monitorLoop
 
-				case <-externalBuzzkill:
+				case <-externalKillCommand:
 					break monitorLoop
 				}
 			}
@@ -429,7 +430,7 @@ func (e *ExecutionContext) Start() {
 		e.setProcessStatus(ProcessStatusWaitingTrigger)
 
 		// Start a goroutine for each trigger to forward messages
-		triggerChan := make(chan string)
+		triggerChan := make(chan string, 50)
 		for _, trigger := range e.triggers {
 			go func(t chan string) {
 				for msg := range t {
@@ -448,16 +449,15 @@ func (e *ExecutionContext) Start() {
 					continue
 				}
 
-				e.execute()
-
 				if e.exitEvent != ExitEventInternal {
 					break monitorLoop
 				}
-
+				e.execute()
 				e.setProcessStatus(ProcessStatusWaitingTrigger)
 				time.Sleep(time.Duration(10) * time.Millisecond)
 
 			case <-exitNotifier:
+				e.BuzzkillProcess()
 				break monitorLoop
 			}
 		}
