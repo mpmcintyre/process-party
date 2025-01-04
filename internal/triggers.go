@@ -132,10 +132,9 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 					watcher.Close()
 					return
 				}
-			case _, ok := <-exitChannel:
-				if !ok {
-					watcher.Close()
-				}
+			case <-exitChannel:
+				c.infoWriter.Write([]byte("Process exiting, closing FS watcher"))
+				watcher.Close()
 				return
 			}
 		}

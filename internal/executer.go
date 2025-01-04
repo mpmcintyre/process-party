@@ -453,6 +453,7 @@ func (e *ExecutionContext) Start() {
 					break monitorLoop
 				}
 				e.execute()
+				e.Process.Pid = ""
 				e.setProcessStatus(ProcessStatusWaitingTrigger)
 				time.Sleep(time.Duration(10) * time.Millisecond)
 

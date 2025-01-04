@@ -22,6 +22,8 @@ func (m *mockWriter) Write(p []byte) (int, error) {
 }
 
 func TestEmptyMessage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		input         string
@@ -45,6 +47,8 @@ func TestEmptyMessage(t *testing.T) {
 }
 
 func TestCustomWriterBasicOutput(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockWriter{}
 	runTask := &RunTask{
 		Process: Process{
@@ -69,6 +73,8 @@ func TestCustomWriterBasicOutput(t *testing.T) {
 }
 
 func TestCustomWriterColorOutput(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		color    ColourCode
@@ -108,6 +114,8 @@ func TestCustomWriterColorOutput(t *testing.T) {
 }
 
 func TestPrefixFormatting(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		prefix     string
@@ -139,6 +147,8 @@ func TestPrefixFormatting(t *testing.T) {
 }
 
 func TestLineSeparation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		input         string
@@ -202,6 +212,8 @@ func TestLineSeparation(t *testing.T) {
 }
 
 func TestTimestampFeature(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockWriter{}
 	runTask := &RunTask{
 		Process: Process{
@@ -222,6 +234,8 @@ func TestTimestampFeature(t *testing.T) {
 }
 
 func TestSilentMode(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockWriter{}
 	runTask := &RunTask{
 		Process: Process{
@@ -240,6 +254,8 @@ func TestSilentMode(t *testing.T) {
 }
 
 func TestErrorHandling(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		writerError error
