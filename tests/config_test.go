@@ -218,7 +218,6 @@ func createNonDefaultConfig(numberOfProcesses int, nameStamp string, tempDir str
 // - Make sure that all settings are non-default
 func TestConfigParsing(t *testing.T) {
 	t.Parallel()
-	t.Log("Testing config parsing")
 	tempDir := "./.tmp/config/"
 	testName := "test"
 	numberOfTestProcesses := 50
@@ -232,10 +231,10 @@ func TestConfigParsing(t *testing.T) {
 	yamlConfig := pp.CreateConfig()
 	tomlConfig := pp.CreateConfig()
 
-	jsonConfig.ParseFile(tempDir + testName + ".json")
-	ymlConfig.ParseFile(tempDir + testName + ".yml")
-	yamlConfig.ParseFile(tempDir + testName + ".yaml")
-	tomlConfig.ParseFile(tempDir + testName + ".toml")
+	jsonConfig.ParseFile(tempDir+testName+".json", true)
+	ymlConfig.ParseFile(tempDir+testName+".yml", true)
+	yamlConfig.ParseFile(tempDir+testName+".yaml", true)
+	tomlConfig.ParseFile(tempDir+testName+".toml", true)
 
 	// Default config seperate new lines and show timestamp should be true
 	if !jsonConfig.SeperateNewLines || !jsonConfig.ShowTimestamp {

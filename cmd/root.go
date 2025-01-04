@@ -46,7 +46,7 @@ using ctrl+c or input "exit" into the command line.
 
 		// Parse the input file if the user passes in an argument
 		if len(args) != 0 {
-			err := config.ParseFile(args[0])
+			err := config.ParseFile(args[0], false)
 			if err != nil {
 				return err
 			}
@@ -75,7 +75,7 @@ using ctrl+c or input "exit" into the command line.
 		go func() {
 			reader := bufio.NewReader(os.Stdin)
 			fmt.Println("Input is active - std in to commands using [all] or specific command using [<cmd prefix>]")
-			fmt.Println("Get the status using \"status\", or quit the party using \"quit\" or ctrl+c")
+			fmt.Println("Get the status using \"status\" or \"s\", or quit the party using \"exit\" or ctrl+c")
 			fmt.Println("-------------------------------------------------------")
 
 		input_loop:
@@ -92,6 +92,12 @@ using ctrl+c or input "exit" into the command line.
 				} else {
 					target = s[0]
 				}
+
+				// Apply shorthands
+				if target == "s" {
+					target = "status"
+				}
+
 				switch target {
 				case "all":
 					if len(s) < 2 {
@@ -142,7 +148,7 @@ using ctrl+c or input "exit" into the command line.
 							if context.Status == pp.ProcessStatusRunning {
 								context.Write(strings.Join(input, ""))
 							} else {
-								fmt.Printf("The %s command has exited, cannot write to process\n", target)
+								fmt.Printf("The %s command is %s, cannot write to process\n", target, context.GetStatusAsStr())
 							}
 						}
 					}

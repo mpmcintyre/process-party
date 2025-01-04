@@ -104,7 +104,6 @@ func TestInternalBuzzkill(t *testing.T) {
 	go func() {
 		<-bkChan
 		buzzkilled.Store(true)
-		t.Log("Buzkill recieved")
 	}()
 
 	context.Start()
@@ -133,7 +132,6 @@ func TestExternalBuzzkill(t *testing.T) {
 	context.Start()
 	time.Sleep(time.Duration(delay) * time.Millisecond)
 	t1 := time.Now()
-	t.Log("Sending buzzkill")
 	context.BuzzkillProcess()
 	wg.Wait()
 	assert.Less(t, time.Since(t1), time.Duration(sleepDuration)*time.Second)
@@ -166,6 +164,7 @@ func TestWait(t *testing.T) {
 	var startRecieved atomic.Bool
 	var restartRecieved atomic.Bool
 	var notStartedRecieved atomic.Bool
+	var waitingForTriggerRecieved atomic.Bool
 	var unknownRecieved atomic.Bool
 
 	go func() {
@@ -175,19 +174,16 @@ func TestWait(t *testing.T) {
 				switch value {
 				case pp.ProcessStatusExited:
 					exitRecieved.Store(true)
-					t.Log("EOC recieved")
 				case pp.ProcessStatusFailed:
 					failedRecieved.Store(true)
-					t.Log("Failure signal recieved")
 				case pp.ProcessStatusRunning:
 					startRecieved.Store(true)
-					t.Log("Process started running")
 				case pp.ProcessStatusRestarting:
 					restartRecieved.Store(true)
-					t.Log("Process signalled restarting")
 				case pp.ProcessStatusNotStarted:
 					notStartedRecieved.Store(true)
-					t.Log("Process signalled not started")
+				case pp.ProcessStatusWaitingTrigger:
+					waitingForTriggerRecieved.Store(true)
 				default:
 					unknownRecieved.Store(true)
 				}
@@ -200,7 +196,6 @@ func TestWait(t *testing.T) {
 
 	go func() {
 		buzzkilled = <-bkChan
-		t.Log("Buzkill recieved")
 	}()
 
 	context.Start()
@@ -209,15 +204,16 @@ func TestWait(t *testing.T) {
 	wg.Wait()
 
 	// Status checks
-	assert.True(t, exitRecieved.Load())
-	assert.False(t, failedRecieved.Load())
-	assert.True(t, startRecieved.Load())
-	assert.False(t, restartRecieved.Load())
-	assert.True(t, notStartedRecieved.Load())
-	assert.False(t, unknownRecieved.Load())
+	assert.True(t, exitRecieved.Load(), "Should recieve exit status")
+	assert.False(t, failedRecieved.Load(), "Should not recieve failed status")
+	assert.True(t, startRecieved.Load(), "Should recieve running status")
+	assert.False(t, restartRecieved.Load(), "Should not recieve restarting status")
+	assert.True(t, notStartedRecieved.Load(), "Should recieve not started status (preparing)")
+	assert.False(t, waitingForTriggerRecieved.Load(), "Should not recieve waiting status")
+	assert.False(t, unknownRecieved.Load(), "Should not recieve unknown status")
 	// Runtime check
-	assert.Greater(t, time.Since(t1), time.Duration(sleepDuration))
-	assert.False(t, buzzkilled)
+	assert.Greater(t, time.Since(t1), time.Duration(sleepDuration), "Process did not run to completion")
+	assert.False(t, buzzkilled, "Should not emit buzzkill during test")
 	assert.Equal(t, context.Status, pp.ProcessStatusExited)
 
 }
@@ -247,6 +243,7 @@ func TestRestart(t *testing.T) {
 	var startRecieved atomic.Bool
 	var restartRecieved atomic.Bool
 	var notStartedRecieved atomic.Bool
+	var waitingForTriggerRecieved atomic.Bool
 	var unknownRecieved atomic.Bool
 	processRunCounter := 0
 
@@ -257,20 +254,17 @@ func TestRestart(t *testing.T) {
 				switch value {
 				case pp.ProcessStatusExited:
 					exitRecieved.Store(true)
-					t.Log("EOC recieved")
 				case pp.ProcessStatusFailed:
 					failedRecieved.Store(true)
-					t.Log("Failure signal recieved")
 				case pp.ProcessStatusRunning:
 					processRunCounter++
 					startRecieved.Store(true)
-					t.Log("Process started running")
 				case pp.ProcessStatusRestarting:
 					restartRecieved.Store(true)
-					t.Log("Process signalled restarting")
 				case pp.ProcessStatusNotStarted:
 					notStartedRecieved.Store(true)
-					t.Log("Process signalled not started")
+				case pp.ProcessStatusWaitingTrigger:
+					waitingForTriggerRecieved.Store(true)
 				default:
 					unknownRecieved.Store(true)
 				}
@@ -283,7 +277,6 @@ func TestRestart(t *testing.T) {
 
 	go func() {
 		buzzkilled = <-bkChan
-		t.Log("Buzkill recieved")
 	}()
 
 	context.Start()
@@ -291,17 +284,18 @@ func TestRestart(t *testing.T) {
 
 	wg.Wait()
 
-	assert.True(t, exitRecieved.Load())
-	assert.False(t, failedRecieved.Load())
-	assert.True(t, startRecieved.Load())
-	assert.True(t, restartRecieved.Load())
-	assert.True(t, notStartedRecieved.Load())
-	assert.False(t, unknownRecieved.Load())
+	assert.True(t, exitRecieved.Load(), "Should recieve exit status")
+	assert.False(t, failedRecieved.Load(), "Should not recieve failed status")
+	assert.True(t, startRecieved.Load(), "Should recieve running status")
+	assert.True(t, restartRecieved.Load(), "Should recieve restart status")
+	assert.True(t, notStartedRecieved.Load(), "Should recieve not started status (preparing)")
+	assert.False(t, waitingForTriggerRecieved.Load(), "Should not recieve waiting status")
+	assert.False(t, unknownRecieved.Load(), "Should not recieve unknown status")
 
-	assert.Equal(t, restartAttempts, processRunCounter)
-	assert.Greater(t, time.Since(t1), time.Duration(sleepDuration))
-	assert.False(t, buzzkilled)
-	assert.Equal(t, pp.ProcessStatusExited, context.Status)
+	assert.Equal(t, restartAttempts, processRunCounter, "Should have run the amount of times restarted")
+	assert.Greater(t, time.Since(t1), time.Duration(sleepDuration), "Process did not run to completion")
+	assert.False(t, buzzkilled, "Should not emit buzzkill during test")
+	assert.Equal(t, pp.ProcessStatusExited, context.Status, "Final status should be exited")
 }
 
 func TestRestartWithDelays(t *testing.T) {
@@ -330,6 +324,7 @@ func TestRestartWithDelays(t *testing.T) {
 	var startRecieved atomic.Bool
 	var restartRecieved atomic.Bool
 	var notStartedRecieved atomic.Bool
+	var waitingForTriggerRecieved atomic.Bool
 	var unknownRecieved atomic.Bool
 
 	go func() {
@@ -339,19 +334,16 @@ func TestRestartWithDelays(t *testing.T) {
 				switch value {
 				case pp.ProcessStatusExited:
 					exitRecieved.Store(true)
-					t.Log("EOC recieved")
 				case pp.ProcessStatusFailed:
 					failedRecieved.Store(true)
-					t.Log("Failure signal recieved")
 				case pp.ProcessStatusRunning:
 					startRecieved.Store(true)
-					t.Log("Process started running")
 				case pp.ProcessStatusRestarting:
 					restartRecieved.Store(true)
-					t.Log("Process signalled restarting")
 				case pp.ProcessStatusNotStarted:
 					notStartedRecieved.Store(true)
-					t.Log("Process signalled not started")
+				case pp.ProcessStatusWaitingTrigger:
+					waitingForTriggerRecieved.Store(true)
 				default:
 					unknownRecieved.Store(true)
 				}
@@ -363,23 +355,23 @@ func TestRestartWithDelays(t *testing.T) {
 	}()
 	go func() {
 		buzzkilled = <-bkChan
-		t.Log("Buzkill recieved")
 	}()
 
 	context.Start()
 	t1 := time.Now()
 	wg.Wait()
 
-	assert.True(t, exitRecieved.Load())
+	assert.True(t, exitRecieved.Load(), "Should recieve exit status")
 	assert.True(t, failedRecieved.Load())
-	assert.True(t, startRecieved.Load())
-	assert.True(t, restartRecieved.Load())
-	assert.True(t, notStartedRecieved.Load())
-	assert.False(t, unknownRecieved.Load())
+	assert.True(t, startRecieved.Load(), "Should recieve running status")
+	assert.True(t, restartRecieved.Load(), "Should recieve restart status")
+	assert.True(t, notStartedRecieved.Load(), "Should recieve not started status (preparing)")
+	assert.False(t, waitingForTriggerRecieved.Load(), "Should not recieve waiting status")
+	assert.False(t, unknownRecieved.Load(), "Should not recieve unknown status")
 
-	assert.Greater(t, time.Since(t1), time.Duration(restartDelay*restartAttempts)*time.Second)
-	assert.False(t, buzzkilled)
-	assert.Equal(t, pp.ProcessStatusExited, context.Status)
+	assert.Greater(t, time.Since(t1), time.Duration(restartDelay*restartAttempts)*time.Second, "Should take longer than run duration with restart delays")
+	assert.False(t, buzzkilled, "Should not emit buzzkill during test")
+	assert.Equal(t, pp.ProcessStatusExited, context.Status, "Final status should be exited")
 }
 
 func TestStartDelay(t *testing.T) {
@@ -410,6 +402,7 @@ func TestStartDelay(t *testing.T) {
 	var startRecieved atomic.Bool
 	var restartRecieved atomic.Bool
 	var notStartedRecieved atomic.Bool
+	var waitingForTriggerRecieved atomic.Bool
 	var unknownRecieved atomic.Bool
 
 	go func() {
@@ -419,19 +412,16 @@ func TestStartDelay(t *testing.T) {
 				switch value {
 				case pp.ProcessStatusExited:
 					exitRecieved.Store(true)
-					t.Log("EOC recieved")
 				case pp.ProcessStatusFailed:
 					failedRecieved.Store(true)
-					t.Log("Failure signal recieved")
 				case pp.ProcessStatusRunning:
 					startRecieved.Store(true)
-					t.Log("Process started running")
 				case pp.ProcessStatusRestarting:
 					restartRecieved.Store(true)
-					t.Log("Process signalled restarting")
 				case pp.ProcessStatusNotStarted:
 					notStartedRecieved.Store(true)
-					t.Log("Process signalled not started")
+				case pp.ProcessStatusWaitingTrigger:
+					waitingForTriggerRecieved.Store(true)
 				default:
 					unknownRecieved.Store(true)
 				}
@@ -442,27 +432,22 @@ func TestStartDelay(t *testing.T) {
 	}()
 	go func() {
 		buzzkilled = <-bkChan
-		t.Log("Buzkill recieved")
 	}()
 
 	context.Start()
 	t1 := time.Now()
 	wg.Wait()
 
-	assert.True(t, exitRecieved.Load())
-	assert.False(t, failedRecieved.Load())
-	assert.True(t, startRecieved.Load())
-	assert.False(t, restartRecieved.Load())
-	assert.True(t, notStartedRecieved.Load())
-	assert.False(t, unknownRecieved.Load())
+	assert.True(t, exitRecieved.Load(), "Should recieve exit status")
+	assert.False(t, failedRecieved.Load(), "Should not recieve failed status")
+	assert.True(t, startRecieved.Load(), "Should recieve running status")
+	assert.False(t, restartRecieved.Load(), "Should not recieve restarting status")
+	assert.True(t, notStartedRecieved.Load(), "Should recieve not started status (preparing)")
+	assert.False(t, waitingForTriggerRecieved.Load(), "Should not recieve waiting status")
+	assert.False(t, unknownRecieved.Load(), "Should not recieve unknown status")
 
-	if time.Since(t1) < time.Duration(sleepDuration) {
-		t.Fatal("Process did not run to completion")
-	}
-	if buzzkilled {
-		t.Fatal("Context recieved buzzkill")
-	}
-	if context.Status == pp.ProcessStatusRunning {
-		t.Fatal("Context run status is still running.")
-	}
+	// Runtime check
+	assert.Greater(t, time.Since(t1), time.Duration(sleepDuration), "Process did not run to completion")
+	assert.False(t, buzzkilled, "Should not emit buzzkill during test")
+	assert.Equal(t, context.Status, pp.ProcessStatusExited)
 }

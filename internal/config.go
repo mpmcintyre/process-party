@@ -169,7 +169,7 @@ func (c *Config) ParseInlineCmd(cmd string) error {
 	return nil
 }
 
-func (c *Config) ParseFile(path string) error {
+func (c *Config) ParseFile(path string, silent bool) error {
 	buffer, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -206,8 +206,10 @@ func (c *Config) ParseFile(path string) error {
 
 	uniqueChecks := map[string]bool{}
 
-	color.HiGreen("Found %d processes in %s", len(c.Processes), path)
-	color.HiBlack("Process tasks:")
+	if !silent {
+		color.HiGreen("Found %d processes in %s", len(c.Processes), path)
+		color.HiBlack("Process tasks:")
+	}
 	outputString := "["
 	waitingString := "["
 	waitCounter := 0
@@ -246,11 +248,14 @@ func (c *Config) ParseFile(path string) error {
 		}
 
 	}
-	color.HiBlack("%s]\n\n", outputString)
-	color.HiGreen("%d processes waiting for triggers", waitCounter)
-	if waitCounter > 0 {
-		color.HiBlack("%s]\n\n", waitingString)
+	if !silent {
+		color.HiBlack("%s]\n\n", outputString)
+		color.HiGreen("%d processes waiting for triggers", waitCounter)
+		if waitCounter > 0 {
+			color.HiBlack("%s]\n\n", waitingString)
+		}
 	}
+
 	c.filePresent = true
 
 	return nil

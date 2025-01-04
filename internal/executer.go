@@ -25,15 +25,13 @@ type (
 		Process                  *Process
 		wg                       *sync.WaitGroup
 		exitEvent                ExecutionExitEvent
-		buzzkillEmitters         []chan bool               // Allow external processes to monitor to trigger a buzzkill event
-		internalExitNotifiers    []chan bool               // All related internal goroutines should lock onto this notifier to exit when the process is killed
-		externalProcessNotifiers []chan ProcessStatus      // Allow external processes to hook into process notifications (running, failed, exited, restarting etc,)
-		externalExitNotifiers    []chan ExecutionExitEvent // Allow external processes to hook into true exit notifications (i.e. the process is no longer running)
+		buzzkillEmitters         []chan bool          // Allow external processes to monitor to trigger a buzzkill event
+		internalExitNotifiers    []chan bool          // All related internal goroutines should lock onto this notifier to exit when the process is killed
+		externalProcessNotifiers []chan ProcessStatus // Allow external processes to hook into process notifications (running, failed, exited, restarting etc,)
 		triggers                 []chan string
 		stdIn                    chan string
 		exitCode                 int
 		executionMutex           *sync.RWMutex
-		cancel                   bool
 		Status                   ProcessStatus
 		restartCounter           int
 	}
@@ -79,7 +77,6 @@ func (p *Process) CreateContext(wg *sync.WaitGroup) *ExecutionContext {
 		wg:                       wg,
 		internalExitNotifiers:    make([]chan bool, 0),
 		externalProcessNotifiers: make([]chan ProcessStatus, 0),
-		externalExitNotifiers:    make([]chan ExecutionExitEvent, 0),
 		stdIn:                    make(chan string, 10),
 		buzzkillEmitters:         make([]chan bool, 0),
 		triggers:                 make([]chan string, 0),
@@ -96,6 +93,7 @@ func (p *Process) CreateContext(wg *sync.WaitGroup) *ExecutionContext {
 }
 
 // Returns a listening channel to listen for a buzzkill event comming FROM the process
+// This channel can close so be sure to check with _,ok:= <- emitted
 func (e *ExecutionContext) GetBuzkillEmitter() chan bool {
 	e.executionMutex.Lock()
 	defer e.executionMutex.Unlock()
@@ -106,6 +104,7 @@ func (e *ExecutionContext) GetBuzkillEmitter() chan bool {
 }
 
 // Returns an output channel of the processes internal status (running, exiting, restarting, failing etc.)
+// This channel can close so be sure to check with _,ok:= <- status
 func (e *ExecutionContext) GetProcessNotificationChannel() chan ProcessStatus {
 	e.executionMutex.Lock()
 	defer e.executionMutex.Unlock()
@@ -116,6 +115,7 @@ func (e *ExecutionContext) GetProcessNotificationChannel() chan ProcessStatus {
 }
 
 // Get an instance of the internal exit notifier channel that outputs a signal when the process is buzzkilled
+// This channel can close so be sure to check with _,ok:= <- status
 func (e *ExecutionContext) getInternalExitNotifier() chan bool {
 	e.executionMutex.Lock()
 	defer e.executionMutex.Unlock()
@@ -125,45 +125,69 @@ func (e *ExecutionContext) getInternalExitNotifier() chan bool {
 	return channel
 }
 
+func (e *ExecutionContext) closeChannels() {
+	e.executionMutex.Lock()
+	defer e.executionMutex.Unlock()
+
+	for i := range e.internalExitNotifiers {
+		if e.internalExitNotifiers[i] != nil {
+			close(e.internalExitNotifiers[i])
+			e.internalExitNotifiers[i] = nil
+		}
+	}
+
+	for i := range e.externalProcessNotifiers {
+		if e.externalProcessNotifiers[i] != nil {
+			close(e.externalProcessNotifiers[i])
+			e.externalProcessNotifiers[i] = nil
+		}
+	}
+
+	for i := range e.buzzkillEmitters {
+		if e.buzzkillEmitters[i] != nil {
+			close(e.buzzkillEmitters[i])
+			e.buzzkillEmitters[i] = nil
+		}
+	}
+}
+
 // Emits the buzzkill command FROM INSIDE the process
 func (e *ExecutionContext) emitBuzkill() {
 	e.executionMutex.RLock()
-	defer e.executionMutex.RUnlock()
-
 	// Send external notifications
 	for _, channel := range e.buzzkillEmitters {
 		if channel != nil {
 			channel <- true
 		}
 	}
+	e.executionMutex.RUnlock()
 
 	// Shut down process goroutines
-	e.BuzzkillProcess()
+	e.closeChannels()
+
 }
 
 // Tell all goroutines related to this process to stop and exit
 func (e *ExecutionContext) BuzzkillProcess() {
-	e.cancel = true
 	e.executionMutex.RLock()
-	defer e.executionMutex.RUnlock()
-
-	for _, channel := range e.internalExitNotifiers {
-		if channel != nil {
-			close(channel)
+	for i := range e.internalExitNotifiers {
+		if e.internalExitNotifiers[i] != nil {
+			e.internalExitNotifiers[i] <- true
 		}
 	}
+	e.executionMutex.RUnlock()
 
-	for _, channel := range e.externalProcessNotifiers {
-		if channel != nil {
-			close(channel)
+	// Wait for the status to change to exited before closing all channels
+	go func() {
+		statusChannel := e.GetProcessNotificationChannel()
+		for {
+			status := <-statusChannel
+			if status == ProcessStatusExited {
+				break
+			}
 		}
-	}
-
-	for _, channel := range e.externalExitNotifiers {
-		if channel != nil {
-			close(channel)
-		}
-	}
+		e.closeChannels()
+	}()
 }
 
 // Updates the process status and sends external notifications of said status
@@ -248,11 +272,13 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionCo
 		monitorLoop:
 			for {
 				select {
-				case <-internalBuzzkill:
-					for i := range len(config.Processes) {
-						// Send to all other channels (not including this one)
-						if i != index {
-							contexts[i].BuzzkillProcess()
+				case _, ok := <-internalBuzzkill:
+					if ok {
+						for i := range len(config.Processes) {
+							// Send to all other channels (not including this one)
+							if i != index {
+								contexts[i].BuzzkillProcess()
+							}
 						}
 					}
 					break monitorLoop
@@ -401,6 +427,7 @@ func (e *ExecutionContext) Start() {
 		}
 
 		e.setProcessStatus(ProcessStatusWaitingTrigger)
+
 		// Start a goroutine for each trigger to forward messages
 		triggerChan := make(chan string)
 		for _, trigger := range e.triggers {

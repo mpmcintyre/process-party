@@ -1,13 +1,13 @@
 package tests
 
 import (
-	"errors"
 	"os"
 	"os/exec"
 	"testing"
 	"time"
 
 	testHelpers "github.com/mpmcintyre/process-party/test_helpers"
+	"github.com/stretchr/testify/assert"
 )
 
 func DirectoryExists(dirname string, pathToDir string) (bool, error) {
@@ -56,19 +56,17 @@ func TestTouch(t *testing.T) {
 
 	cmdSettings := testHelpers.CreateTouchCmdSettings(filename)
 	cmd := exec.Command(cmdSettings.Cmd, cmdSettings.Args...)
-	x, err := cmd.Output()
+	_, err = cmd.Output()
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(string(x))
+
 	dirFound, err = FileExists(filename, "./")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !dirFound {
-		t.Fatal(errors.New("directory not created"))
-	}
+	assert.True(t, dirFound, "File not created")
 	os.RemoveAll(filename)
 }
 
@@ -87,19 +85,17 @@ func TestMkdir(t *testing.T) {
 
 	cmdSettings := testHelpers.CreateMkdirCmdSettings(dirName)
 	cmd := exec.Command(cmdSettings.Cmd, cmdSettings.Args...)
-	x, err := cmd.Output()
+	_, err = cmd.Output()
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(string(x))
+
 	dirFound, err = DirectoryExists(dirName, "./")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !dirFound {
-		t.Fatal(errors.New("directory not created"))
-	}
+	assert.True(t, dirFound, "Directory not created")
 	os.RemoveAll(dirName)
 }
 
@@ -110,13 +106,10 @@ func TestSleep(t *testing.T) {
 	cmd := exec.Command(cmdSettings.Cmd, cmdSettings.Args...)
 	t1 := time.Now()
 
-	x, err := cmd.Output()
+	_, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if time.Since(t1) <= time.Duration(sleepTime)*time.Second {
-		t.Fatal(errors.New("Sleep did not sleep correctly"))
-	}
-	t.Log(string(x))
+	assert.GreaterOrEqual(t, time.Since(t1), time.Duration(sleepTime)*time.Second, "Sleep did not sleep correctly")
 }

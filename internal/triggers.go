@@ -79,7 +79,7 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 	// Start file watcher
 	go func() {
 		debounceTimer := time.Now()
-		debounceTime := 50 // 50 ms
+		debounceTime := 20 // 50 ms
 
 		for {
 			select {
