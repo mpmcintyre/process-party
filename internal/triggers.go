@@ -186,6 +186,10 @@ func LinkProcessTriggers(contexts []*ExecutionContext) error {
 			return err
 		}
 		if fsTrigger != nil {
+			if context.Process.RestartAttempts != 0 && (context.Process.OnComplete == ExitCommandRestart || context.Process.OnFailure == ExitCommandRestart) {
+				context.errorWriter.Printf("Process contains a trigger and restarts on exit/failure with 1 or more restart attempts")
+				return errors.New("Restarting triggered processes can lead to undesired behaviour. Remove triggers or restart attempts on process [" + context.Process.Name + "]")
+			}
 			context.triggers = append(context.triggers, fsTrigger)
 		}
 	}
@@ -201,11 +205,11 @@ func LinkProcessTriggers(contexts []*ExecutionContext) error {
 	applyTriggers := func(triggers []string, signal ProcessStatus, context *ExecutionContext) error {
 
 		for _, process := range triggers {
+			if process == context.Process.Name {
+
+			}
 			if value, exists := x[process]; exists {
 				if contains(value.Process.Trigger.Process.OnComplete, process) {
-					return errors.New("Circular trigger detected: " + value.Process.Name + " and " + process + " trigger each other")
-				}
-				if contains(value.Process.Trigger.Process.OnEnd, process) {
 					return errors.New("Circular trigger detected: " + value.Process.Name + " and " + process + " trigger each other")
 				}
 				if contains(value.Process.Trigger.Process.OnError, process) {
@@ -220,9 +224,11 @@ func LinkProcessTriggers(contexts []*ExecutionContext) error {
 				return errors.New("Specified target process for trigger does not exist on " + context.Process.Name + ", Non existant trigger = " + process)
 			}
 		}
-		if len(triggers) > 0 && context.Process.RestartAttempts != 0 {
-			context.errorWriter.Printf("Process contains a trigger and restart attempts")
-			return errors.New("Restarting triggered processes can lead to undesired behaviour. Remove triggers or restart attempts on process [" + context.Process.Name + "]")
+		if len(triggers) > 0 {
+			if context.Process.RestartAttempts != 0 && (context.Process.OnComplete == ExitCommandRestart || context.Process.OnFailure == ExitCommandRestart) {
+				context.errorWriter.Printf("Process contains a trigger and restarts on exit/failure with 1 or more restart attempts")
+				return errors.New("Restarting triggered processes can lead to undesired behaviour. Remove triggers or restart attempts on process [" + context.Process.Name + "]")
+			}
 		}
 		return nil
 	}
@@ -235,15 +241,6 @@ func LinkProcessTriggers(contexts []*ExecutionContext) error {
 		}
 		// On error
 		err = applyTriggers(context.Process.Trigger.Process.OnError, ProcessStatusFailed, context)
-		if err != nil {
-			return err
-		}
-		// On any end
-		err = applyTriggers(context.Process.Trigger.Process.OnEnd, ProcessStatusExited, context)
-		if err != nil {
-			return err
-		}
-		err = applyTriggers(context.Process.Trigger.Process.OnEnd, ProcessStatusFailed, context)
 		if err != nil {
 			return err
 		}

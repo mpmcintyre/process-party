@@ -15,13 +15,13 @@ import (
 )
 
 // Creates a process with non-default values
-func createBaseProcess(command string, args []string, restartAttempts int, restartDelay int) pp.Process {
+func createBaseProcess(command string, args []string, restartAttempts int, restartDelay int, name string) pp.Process {
 	var tpExit pp.ExitCommand = "wait"
 	var tpColour pp.ColourCode = "yellow"
 	var tpDelays int = 0
 
 	return pp.Process{
-		Name:       "trigger",
+		Name:       name,
 		Command:    command,
 		Args:       args,
 		Prefix:     "trigger",
@@ -40,25 +40,133 @@ func createBaseProcess(command string, args []string, restartAttempts int, resta
 	}
 }
 
-func TestFsIlligals(t *testing.T) {
+func TestLinkErrors(t *testing.T) {
 	t.Parallel()
 
-	createProcess := func() {
-		tempDir := "./.tmp/triggers/nonExistant"
+	existingDirPath := "./.tmp/existingDir"
+	nonExistentDir := "./.tmp/i-no-existo"
+	existingProcessName := "linkTest1"
+	nonExistingProcessName := "non-link-testslol"
+	numberOfProcesses := 10
+
+	err := os.Mkdir(existingDirPath, fs.ModeDir)
+	assert.Nil(t, err, "Have to make a test directory")
+
+	var wg sync.WaitGroup
+
+	contexts := []*pp.ExecutionContext{}
+	for i := range numberOfProcesses {
 		cmdSettings := testHelpers.CreateSleepCmdSettings(0)
-		process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0)
+		process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0, "linkTest"+strconv.Itoa(i))
 		process.Silent = true
-
-		var wg sync.WaitGroup
 		context := process.CreateContext(&wg)
-		context.Process.Trigger.FileSystem.Watch = []string{tempDir}
-		context.Process.Trigger.FileSystem.Ignore = []string{}
-		context.Process.Trigger.FileSystem.ContainFilters = []string{}
-		err := pp.LinkProcessTriggers([]*pp.ExecutionContext{context})
-
+		contexts = append(contexts, context)
 	}
 
-	assert.NotNil(t, err, "The linking process should errror if a file is not found")
+	fsTests := []struct {
+		name            string
+		linkErrors      bool
+		Watch           []string
+		Ignore          []string
+		ContainFilters  []string
+		restartAttempts int
+	}{
+		{"No triggers", false, []string{}, []string{}, []string{}, 0},
+		{"Single existing dir", false, []string{existingDirPath}, []string{}, []string{}, 0},
+		{"Non existent dir", true, []string{nonExistentDir}, []string{}, []string{}, 0},
+		{"No restarts allowed - restart once", true, []string{nonExistentDir}, []string{}, []string{}, 1},
+		{"No restarts allowed - restart forever", true, []string{nonExistentDir}, []string{}, []string{}, -1},
+	}
+
+	t.Run("FileSystem", func(t *testing.T) {
+		for _, tt := range fsTests {
+			t.Run(tt.name, func(t *testing.T) {
+				if tt.restartAttempts != 0 {
+					contexts[0].Process.OnComplete = pp.ExitCommandRestart
+					contexts[0].Process.RestartAttempts = tt.restartAttempts
+				} else {
+					contexts[0].Process.OnComplete = pp.ExitCommandWait
+					contexts[0].Process.RestartAttempts = 0
+				}
+
+				contexts[0].Process.Trigger.FileSystem.Watch = tt.Watch
+				contexts[0].Process.Trigger.FileSystem.Ignore = tt.Ignore
+				contexts[0].Process.Trigger.FileSystem.ContainFilters = tt.ContainFilters
+				err := pp.LinkProcessTriggers(contexts)
+
+				if tt.linkErrors {
+					assert.NotNil(t, err, tt.name+" should have errrored when linking")
+				} else {
+					assert.Nil(t, err, tt.name+" should not have errrored when linking")
+				}
+
+			})
+		}
+	})
+	contexts = []*pp.ExecutionContext{}
+	for i := range numberOfProcesses {
+		cmdSettings := testHelpers.CreateSleepCmdSettings(0)
+		process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0, "linkTest"+strconv.Itoa(i))
+		process.Silent = true
+		context := process.CreateContext(&wg)
+		contexts = append(contexts, context)
+	}
+
+	processTests := []struct {
+		name            string
+		linkErrors      bool
+		OnComplete      []string
+		OnError         []string
+		OnStart         []string
+		restartAttempts int
+	}{
+		{"No triggers", false, []string{}, []string{}, []string{}, 0},
+		{"Single process - on complete", false, []string{existingProcessName}, []string{}, []string{}, 0},
+		{"Single process - on complete (non-existent)", true, []string{nonExistingProcessName}, []string{}, []string{}, 0},
+		{"Single process - on error", false, []string{}, []string{existingProcessName}, []string{}, 0},
+		{"Single process - on error (non-existent)", true, []string{}, []string{nonExistingProcessName}, []string{}, 0},
+		{"Single process - on start", false, []string{}, []string{}, []string{existingProcessName}, 0},
+		{"Single process - on start (non-existent)", true, []string{}, []string{}, []string{nonExistingProcessName}, 0},
+		{"Allow multiple triggers", false, []string{existingProcessName}, []string{existingProcessName}, []string{existingProcessName}, 0},
+		{"Can't have the same name", true, []string{contexts[0].Process.Name}, []string{}, []string{}, 0},
+		{"No restarts allowed - restart once", true, []string{contexts[0].Process.Name}, []string{}, []string{}, 1},
+		{"No restarts allowed - restart forever", true, []string{contexts[0].Process.Name}, []string{}, []string{}, -1},
+	}
+
+	t.Run("Processes", func(t *testing.T) {
+		assert.NotEqual(t, contexts[0].Process.RestartAttempts, -1)
+		assert.NotEqual(t, contexts[0].Process.RestartAttempts, 1)
+		for _, tt := range processTests {
+			t.Run(tt.name, func(t *testing.T) {
+				if tt.restartAttempts != 0 {
+					contexts[0].Process.OnComplete = pp.ExitCommandRestart
+					contexts[0].Process.RestartAttempts = tt.restartAttempts
+				} else {
+					contexts[0].Process.OnComplete = pp.ExitCommandWait
+					contexts[0].Process.RestartAttempts = 0
+				}
+
+				contexts[0].Process.Trigger.Process.OnComplete = tt.OnComplete
+				contexts[0].Process.Trigger.Process.OnError = tt.OnError
+				contexts[0].Process.Trigger.Process.OnStart = tt.OnStart
+				err := pp.LinkProcessTriggers(contexts)
+
+				if tt.linkErrors {
+					assert.NotNil(t, err, tt.name+" should have errrored when linking")
+				} else {
+					assert.Nil(t, err, tt.name+" should not have errrored when linking")
+				}
+
+			})
+			contexts[0].Process.Trigger.Process.OnComplete = []string{}
+			contexts[0].Process.Trigger.Process.OnError = []string{}
+			contexts[0].Process.Trigger.Process.OnStart = []string{}
+		}
+	})
+
+	t.Cleanup(func() {
+		os.RemoveAll(existingDirPath)
+	})
 
 }
 
@@ -74,7 +182,7 @@ func TestFsTriggersBasic(t *testing.T) {
 	expectedRuns := 10
 	triggerInterval := 50
 	cmdSettings := testHelpers.CreateSleepCmdSettings(0)
-	process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0)
+	process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0, "trigger")
 	process.Silent = true
 
 	var wg sync.WaitGroup
@@ -207,7 +315,7 @@ func TestFsTriggersNoDoubleProcessing(t *testing.T) {
 	triggerIntervals := 50
 	runtimeSec := 1
 	cmdSettings := testHelpers.CreateSleepCmdSettings(runtimeSec)
-	process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0)
+	process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0, "trigger")
 	process.Silent = true
 
 	assert.Less(t, triggerIntervals*createdFiles/1000, runtimeSec, "The intervals across all triggers cannot be longer that the total runtime")

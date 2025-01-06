@@ -51,7 +51,6 @@ func createRunTask(increment int, nameStamp string) pp.Process {
 			},
 			Process: pp.ProcessTrigger{
 				OnStart:    []string{"test"},
-				OnEnd:      []string{"test"},
 				OnComplete: []string{"test"},
 				OnError:    []string{"test"},
 			},

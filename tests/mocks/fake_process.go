@@ -31,7 +31,8 @@ func main() {
 			log.Fatal(err)
 		}
 	case "fail":
-		log.Fatalf("failing task on purpouse\n%s executed successfully\n", args[0])
+		fmt.Printf("failing task on purpouse\n")
+		os.Exit(1)
 	}
 
 	fmt.Printf("%s executed successfully\n", args[0])

@@ -27,7 +27,6 @@ type (
 
 	ProcessTrigger struct {
 		OnStart    []string `toml:"on_start" json:"on_start" yaml:"on_start"`          // Process started successfully
-		OnEnd      []string `toml:"on_end" json:"on_end" yaml:"on_end"`                // Exit status does not matter
 		OnComplete []string `toml:"on_complete" json:"on_complete" yaml:"on_complete"` // On exit status 0
 		OnError    []string `toml:"on_error" json:"on_error" yaml:"on_error"`          // On exit status > 0
 	}
@@ -116,7 +115,6 @@ func (p *Process) HasFsTrigger() bool {
 
 func (p *Process) HasProcessTrigger() bool {
 	return len(p.Trigger.Process.OnComplete) > 0 ||
-		len(p.Trigger.Process.OnEnd) > 0 ||
 		len(p.Trigger.Process.OnStart) > 0 ||
 		len(p.Trigger.Process.OnError) > 0
 }
