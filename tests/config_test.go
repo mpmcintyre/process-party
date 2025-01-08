@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"reflect"
 	"testing"
@@ -154,7 +153,7 @@ func writeFile(data []byte, dir string, filename string) error {
 func createNonDefaultConfig(numberOfProcesses int, nameStamp string, tempDir string, testName string) error {
 
 	if !dirExists(tempDir) {
-		os.MkdirAll(tempDir, fs.ModeDir)
+		os.MkdirAll(tempDir, 0755)
 	}
 
 	defaultProcess := pp.Process{}

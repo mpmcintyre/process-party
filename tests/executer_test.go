@@ -272,7 +272,6 @@ func TestRestart(t *testing.T) {
 				break
 			}
 		}
-
 	}()
 
 	go func() {
@@ -281,7 +280,6 @@ func TestRestart(t *testing.T) {
 
 	context.Start()
 	t1 := time.Now()
-
 	wg.Wait()
 
 	assert.True(t, exitRecieved.Load(), "Should recieve exit status")

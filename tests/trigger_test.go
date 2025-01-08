@@ -1,8 +1,8 @@
 package tests
 
 import (
-	"io/fs"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -43,13 +43,13 @@ func createBaseProcess(command string, args []string, restartAttempts int, resta
 func TestLinkErrors(t *testing.T) {
 	t.Parallel()
 
-	existingDirPath := "./.tmp/existingDir"
-	nonExistentDir := "./.tmp/i-no-existo"
+	existingDirPath := filepath.Join(".tmp", "existingDir")
+	nonExistentDir := filepath.Join(".tmp", "i-no-existo")
 	existingProcessName := "linkTest1"
 	nonExistingProcessName := "non-link-testslol"
 	numberOfProcesses := 10
 
-	err := os.Mkdir(existingDirPath, fs.ModeDir)
+	err := os.Mkdir(existingDirPath, 0755)
 	assert.Nil(t, err, "Have to make a test directory")
 
 	var wg sync.WaitGroup
@@ -128,6 +128,7 @@ func TestLinkErrors(t *testing.T) {
 		{"Single process - on start", false, []string{}, []string{}, []string{existingProcessName}, 0},
 		{"Single process - on start (non-existent)", true, []string{}, []string{}, []string{nonExistingProcessName}, 0},
 		{"Allow multiple triggers", false, []string{existingProcessName}, []string{existingProcessName}, []string{existingProcessName}, 0},
+		{"Allow duplicate triggers", false, []string{existingProcessName, existingProcessName}, []string{}, []string{}, 0},
 		{"Can't have the same name", true, []string{contexts[0].Process.Name}, []string{}, []string{}, 0},
 		{"No restarts allowed - restart once", true, []string{contexts[0].Process.Name}, []string{}, []string{}, 1},
 		{"No restarts allowed - restart forever", true, []string{contexts[0].Process.Name}, []string{}, []string{}, -1},
@@ -173,8 +174,8 @@ func TestLinkErrors(t *testing.T) {
 // Test basic default functionality (recursive watching and allowing it to run to completion)
 func TestFsTriggersBasic(t *testing.T) {
 	t.Parallel()
-	tempDir := "./.tmp/triggers/basic"
-	subDir := "./.tmp/triggers/basic/subfolder"
+	tempDir := filepath.Join(".tmp", "triggers", "basic")
+	subDir := filepath.Join(".tmp", "triggers", "basic", "subfolder")
 	filename := "triggerFile"
 	createdFiles := 3
 	createdFilesInSubdirectory := 3
@@ -192,7 +193,7 @@ func TestFsTriggersBasic(t *testing.T) {
 	context.Process.Trigger.FileSystem.ContainFilters = []string{}
 
 	os.RemoveAll(tempDir)
-	os.MkdirAll(tempDir, fs.ModeDir)
+	os.MkdirAll(tempDir, 0755)
 
 	err := pp.LinkProcessTriggers([]*pp.ExecutionContext{context})
 
@@ -253,21 +254,32 @@ func TestFsTriggersBasic(t *testing.T) {
 		// Create files in watched directory
 		for i := range createdFiles {
 			time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
-			os.Create(tempDir + "/" + filename + strconv.Itoa(i))
+			f, err := os.Create(filepath.Join(tempDir, filename+strconv.Itoa(i)))
+			if err != nil {
+				t.Errorf("Failed to create file %s: %v", filepath.Join(tempDir, filename+strconv.Itoa(i)), err)
+				continue
+			}
+			f.Close()
 		}
 		// Make sure the trigger does not run when an empty directory is created
 		for i := range createdDirectories {
 			time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
-			os.Mkdir(tempDir+"/"+filename+"dir"+strconv.Itoa(i), fs.ModeDir)
+			os.Mkdir(filepath.Join(tempDir, filename+"dir"+strconv.Itoa(i)), 0755)
 		}
 		// Create subdirectory for creating files inside a subdirectory
 		time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
-		os.MkdirAll(subDir, fs.ModeDir)
+		os.MkdirAll(subDir, 0755)
 		time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
 
 		for i := range createdFilesInSubdirectory {
 			time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
-			os.Create(subDir + "/" + filename + strconv.Itoa(i))
+
+			f, err := os.Create(filepath.Join(subDir, filename+strconv.Itoa(i)))
+			if err != nil {
+				t.Errorf("Failed to create file %s: %v", filepath.Join(subDir, filename+strconv.Itoa(i)), err)
+				continue
+			}
+			f.Close()
 		}
 
 		time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
@@ -308,7 +320,8 @@ func TestFsTriggersBasic(t *testing.T) {
 // The trigger should not have more runs if the process is currently running
 func TestFsTriggersNoDoubleProcessing(t *testing.T) {
 	t.Parallel()
-	tempDir := "./.tmp/triggers/double"
+
+	tempDir := filepath.Join(".tmp", "triggers", "double")
 	filename := "triggerFile"
 	createdFiles := 10
 	expectedRuns := 1
@@ -326,7 +339,7 @@ func TestFsTriggersNoDoubleProcessing(t *testing.T) {
 	context.Process.Trigger.FileSystem.ContainFilters = []string{}
 
 	os.RemoveAll(tempDir)
-	os.MkdirAll(tempDir, fs.ModeDir)
+	os.MkdirAll(tempDir, 0755)
 
 	err := pp.LinkProcessTriggers([]*pp.ExecutionContext{context})
 
@@ -387,7 +400,13 @@ func TestFsTriggersNoDoubleProcessing(t *testing.T) {
 		// Create files in watched directory
 		for i := range createdFiles {
 			time.Sleep(time.Duration(triggerIntervals) * time.Millisecond)
-			os.Create(tempDir + "/" + filename + strconv.Itoa(i))
+
+			f, err := os.Create(filepath.Join(tempDir, filename+strconv.Itoa(i)))
+			if err != nil {
+				t.Errorf("Failed to create file %s: %v", filepath.Join(tempDir, filename+strconv.Itoa(i)), err)
+				continue
+			}
+			f.Close()
 		}
 
 		time.Sleep(time.Duration(runtimeSec)*time.Second - time.Duration(triggerIntervals*createdFiles)*time.Millisecond)

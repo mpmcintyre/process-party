@@ -8,7 +8,7 @@ name = "cmd"
 command = "cmd"
 prefix = "FRONT"
 color = "green"
-on_failure = "buzzkill"
+on_failure = "wait"
 on_complete =  "wait"
 stdin_on_start = "echo hello\nexit"
 
