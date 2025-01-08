@@ -246,6 +246,7 @@ func (e *ExecutionContext) handleProcessExit() {
 		}
 	}
 
+	e.setProcessStatus(ProcessStatusExited)
 }
 
 func (e *ExecutionContext) Write(input string) {
@@ -299,6 +300,7 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionCo
 
 func (c *ExecutionContext) execute() {
 	c.setProcessStatus(ProcessStatusNotStarted)
+	c.executionMutex.Lock()
 	// Create command
 	c.cmd = exec.Command(c.Process.Command, c.Process.Args...)
 	c.cmd.Env = os.Environ() // Set the full environment, including PATH
@@ -316,6 +318,7 @@ func (c *ExecutionContext) execute() {
 	}
 	// Start the command
 	startErr := c.cmd.Start()
+	c.executionMutex.Unlock()
 	if startErr == nil {
 		c.setProcessStatus(ProcessStatusRunning)
 	}
@@ -328,7 +331,9 @@ commandLoop:
 	for {
 		select {
 		case value := <-c.stdIn: // Received std in
-			c.writePipe.Write([]byte(value + "\n"))
+			if c.cmd.Process != nil && c.cmd.ProcessState.ExitCode() < 0 && startErr != nil {
+				c.writePipe.Write([]byte(value + "\n"))
+			}
 		case <-buzzkillChannel: // Recieved buzzkill
 			c.exitEvent = ExitEventBuzzkilled
 			c.infoWriter.Write([]byte("Recieved buzzkill command"))
@@ -367,12 +372,6 @@ commandLoop:
 				displayedPid = true
 			}
 
-			// Stream the initial start stream values and set it to an empty string
-			if c.Process.StartStream != "" {
-				c.writePipe.Write([]byte(c.Process.StartStream + "\n"))
-				c.Process.StartStream = ""
-			}
-
 			// Handle the process exiting
 			if c.cmd.Process != nil && c.cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
 				if c.cmd.ProcessState.ExitCode() == 0 {
@@ -388,8 +387,13 @@ commandLoop:
 				}
 				c.exitCode = c.cmd.ProcessState.ExitCode()
 				c.cmd.Wait() // This is likely redundant as we listen up top, but best be sure
-				c.setProcessStatus(ProcessStatusExited)
 				break commandLoop
+			}
+
+			// Stream the initial start stream values and set it to an empty string
+			if c.Process.StartStream != "" {
+				c.writePipe.Write([]byte(c.Process.StartStream + "\n"))
+				c.Process.StartStream = ""
 			}
 
 			// Don't spin too hard
