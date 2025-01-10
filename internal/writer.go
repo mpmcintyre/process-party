@@ -16,6 +16,7 @@ type customWriter struct {
 	prefix   string
 }
 
+// Returns true if the line is empty
 func emptyMessage(s string) bool {
 	if s == "" || s == " " {
 		return true
@@ -27,6 +28,7 @@ func emptyMessage(s string) bool {
 	return x == ""
 }
 
+// Creates the prefix so we dont need to do it on every message
 func (c *customWriter) createPrefix() {
 	c.prefix = "[" + c.process.Prefix
 	if c.process.DisplayPid {
@@ -36,6 +38,7 @@ func (c *customWriter) createPrefix() {
 	c.prefix = c.prefix + "]"
 }
 
+// Utility function to simplyfy printing strings
 func (c customWriter) Printf(format string, a ...any) {
 	c.Write([]byte(fmt.Sprintf(format, a...)))
 }
@@ -61,10 +64,6 @@ func (c customWriter) Write(p []byte) (int, error) {
 
 	// Take out common line seperation
 	message = strings.Replace(message, "\r", "", -1)
-	// message = strings.Replace(message, "\n", "", -1)
-	// message = strings.Replace(message, "\r\n", "", -1)
-	// message = strings.Replace(message, "\t", "", -1)
-
 	x := strings.Split(message, "\n")
 
 	if c.process.SeperateNewLines {

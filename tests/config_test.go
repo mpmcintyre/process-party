@@ -57,6 +57,7 @@ func createRunTask(increment int, nameStamp string) pp.Process {
 	}
 }
 
+// Recursively searches maps (config) to ensure that there is not one value equal to one another
 func recursiveSearchForEq(itemA map[string]interface{}, itemB map[string]interface{}) bool {
 	// Handle the case where itemB is nil
 	if itemB == nil {
@@ -128,7 +129,7 @@ func containsDefaultValues(process pp.Process) bool {
 	return false
 }
 
-// exists returns whether the given file or directory exists
+// Exists returns whether the given file or directory exists
 func dirExists(path string) bool {
 	_, err := os.Stat(path)
 	if err == nil {
@@ -140,6 +141,7 @@ func dirExists(path string) bool {
 	return false
 }
 
+// Utility function to write file
 func writeFile(data []byte, dir string, filename string) error {
 	file, err := os.Create(dir + filename)
 	if err != nil {
@@ -150,6 +152,7 @@ func writeFile(data []byte, dir string, filename string) error {
 	return nil
 }
 
+// Creates a configuration where no value is equal to the default value (this ensures that new items are accounted for)
 func createNonDefaultConfig(numberOfProcesses int, nameStamp string, tempDir string, testName string) error {
 
 	if !dirExists(tempDir) {

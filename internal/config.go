@@ -88,6 +88,7 @@ const (
 	ColourCmdMagenta ColourCode = "magenta"
 )
 
+// Gets the coloured print function for the writer
 func (p *Process) GetFgColour() func(format string, a ...interface{}) string {
 	switch p.Color {
 	case ColourCmdYellow:
@@ -109,20 +110,24 @@ func (p *Process) GetFgColour() func(format string, a ...interface{}) string {
 	}
 }
 
+// Returns if the process has an fs trigger
 func (p *Process) HasFsTrigger() bool {
 	return len(p.Trigger.FileSystem.Watch) > 0
 }
 
+// Returns if the process has a process trigger
 func (p *Process) HasProcessTrigger() bool {
 	return len(p.Trigger.Process.OnComplete) > 0 ||
 		len(p.Trigger.Process.OnStart) > 0 ||
 		len(p.Trigger.Process.OnError) > 0
 }
 
+// Returns if the process has an fs trigger or process trigger
 func (t *Process) HasTrigger() bool {
 	return t.HasFsTrigger() || t.HasProcessTrigger()
 }
 
+// Creates an empty default config that needs to be populated
 func CreateConfig() *Config {
 	return &Config{
 		Processes:        []Process{},
@@ -132,6 +137,7 @@ func CreateConfig() *Config {
 	}
 }
 
+// Parses an inline command (not config related) to be added to the config
 func (c *Config) ParseInlineCmd(cmd string) error {
 	s := strings.Split(cmd, " ")
 	if len(s) == 0 {
@@ -168,6 +174,7 @@ func (c *Config) ParseInlineCmd(cmd string) error {
 	return nil
 }
 
+// Reads a config file and attempts to parse the configuration
 func (c *Config) ParseFile(path string, silent bool) error {
 	buffer, err := os.ReadFile(path)
 	if err != nil {

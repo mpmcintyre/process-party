@@ -11,6 +11,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+// Returns true if the trigger should run, false if it should not
 func (c *ExecutionContext) fileFilter() func(string) bool {
 	return func(path string) bool {
 		// First check exact matches in included items
@@ -48,6 +49,7 @@ func (c *ExecutionContext) fileFilter() func(string) bool {
 	}
 }
 
+// Checks if the fs event was a creation event and if the item is a directory. If it is it adds it to the watcher
 func (c *ExecutionContext) recursivelyWatch(event fsnotify.Event, watcher *fsnotify.Watcher) {
 	if c.Process.Trigger.FileSystem.NonRecursive {
 		return
@@ -163,6 +165,7 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 	return trigger, nil
 }
 
+// Creates a channel that runs when the contexts emits the listening signal
 func (e *ExecutionContext) CreateProcessTrigger(signal ProcessStatus, message string) chan string {
 	trigger := make(chan string, 10)
 
@@ -188,6 +191,7 @@ func (e *ExecutionContext) CreateProcessTrigger(signal ProcessStatus, message st
 	return trigger
 }
 
+// Utility function to check if a slice contains a string value
 func contains(arr []string, target string) bool {
 	for _, value := range arr {
 		if value == target {
@@ -197,7 +201,7 @@ func contains(arr []string, target string) bool {
 	return false
 }
 
-// Links process triggers together
+// Links process triggers together for a range of execution contexts
 func LinkProcessTriggers(contexts []*ExecutionContext) error {
 	// Filesystem triggers
 	for _, context := range contexts {

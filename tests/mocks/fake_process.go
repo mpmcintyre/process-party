@@ -19,6 +19,7 @@ func main() {
 			log.Fatal(err)
 		}
 		time.Sleep(time.Duration(i) * time.Second)
+
 	case "mkdir":
 		err := os.MkdirAll(args[1], 0755)
 		if err != nil {

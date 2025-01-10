@@ -53,6 +53,7 @@ const (
 	ProcessStatusWaitingTrigger
 )
 
+// Returns the executions current status as a string
 func (c *ExecutionContext) GetStatusAsStr() string {
 	switch c.Status {
 	case ProcessStatusNotStarted:
@@ -126,6 +127,7 @@ func (e *ExecutionContext) getInternalExitNotifier() chan bool {
 	return channel
 }
 
+// Close all the channels
 func (e *ExecutionContext) closeChannels() {
 	e.executionMutex.Lock()
 	defer e.executionMutex.Unlock()
@@ -150,6 +152,11 @@ func (e *ExecutionContext) closeChannels() {
 			e.buzzkillEmitters[i] = nil
 		}
 	}
+
+	close(e.stdIn)
+	e.stdIn = nil
+
+	// Triggers should close themselves on internal exit emitted (dont close here)
 }
 
 // Emits the buzzkill command FROM INSIDE the process
@@ -207,6 +214,7 @@ func (e *ExecutionContext) setProcessStatus(status ProcessStatus) {
 
 }
 
+// Handles how the execution context behaves on exit, depending on exit behaviour
 func (e *ExecutionContext) handleProcessExit() {
 	exitCommand := ExitCommandWait
 	if e.exitEvent != ExitEventBuzzkilled {
@@ -250,10 +258,14 @@ func (e *ExecutionContext) handleProcessExit() {
 	e.setProcessStatus(ProcessStatusExited)
 }
 
+// Writes to the executing execution context
 func (e *ExecutionContext) Write(input string) {
-	e.stdIn <- input
+	if e.stdIn != nil {
+		e.stdIn <- input
+	}
 }
 
+// Loops over the processes in the config and provides a list of pointers to execution contexts for each process
 func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionContext {
 
 	// Create context and channel groups
@@ -299,6 +311,7 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionCo
 	return contexts
 }
 
+// Actual execution of the desired process/execution context.
 func (c *ExecutionContext) execute() {
 	c.setProcessStatus(ProcessStatusNotStarted)
 	c.executionMutex.Lock()
@@ -452,6 +465,7 @@ func (e *ExecutionContext) end() {
 	e.wg.Done()
 }
 
+// Starts execution of the process or monitoring for any trigger events to trigger the process. Exits with buzzkill
 func (e *ExecutionContext) Start() {
 	e.wg.Add(1)
 	exitNotifier := e.getInternalExitNotifier()

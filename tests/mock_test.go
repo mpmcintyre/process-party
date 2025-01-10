@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Utility function to check if a directory exists
 func DirectoryExists(dirname string, pathToDir string) (bool, error) {
 	dirs, err := os.ReadDir(pathToDir)
 	if err != nil {
@@ -25,6 +26,7 @@ func DirectoryExists(dirname string, pathToDir string) (bool, error) {
 	return false, nil
 }
 
+// Utility function to check if a file exists
 func FileExists(filename string, path string) (bool, error) {
 	dirs, err := os.ReadDir(path)
 	if err != nil {
@@ -40,7 +42,7 @@ func FileExists(filename string, path string) (bool, error) {
 	return false, nil
 }
 
-// Tests
+// General mock functions
 func TestMockFunctions(t *testing.T) {
 
 	t.Run("Touch", func(t *testing.T) {

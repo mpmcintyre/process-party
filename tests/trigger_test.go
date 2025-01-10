@@ -40,6 +40,7 @@ func createBaseProcess(command string, args []string, restartAttempts int, resta
 	}
 }
 
+// Ensure the trigger linker works as intended
 func TestLinkErrors(t *testing.T) {
 	t.Parallel()
 

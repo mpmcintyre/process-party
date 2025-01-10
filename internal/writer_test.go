@@ -14,6 +14,7 @@ type mockWriter struct {
 	err     error
 }
 
+// Utility write function to test writer
 func (m *mockWriter) Write(p []byte) (int, error) {
 	if m.err != nil {
 		return 0, m.err
@@ -22,6 +23,7 @@ func (m *mockWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// Ensure that empty lines are cleared
 func TestEmptyMessage(t *testing.T) {
 	t.Parallel()
 
@@ -47,6 +49,7 @@ func TestEmptyMessage(t *testing.T) {
 	}
 }
 
+// Ensures that the writer has the correct lengths
 func TestCustomWriterBasicOutput(t *testing.T) {
 	t.Parallel()
 
@@ -76,6 +79,8 @@ func TestCustomWriterBasicOutput(t *testing.T) {
 	expectedOutput := fmt.Sprintf("%s %s\n", coloredPrefix, message)
 	assert.Equal(t, expectedOutput, string(mock.written))
 }
+
+// Ensure that the colour ouput is provided on output string
 func TestCustomWriterColorOutput(t *testing.T) {
 	t.Parallel()
 
@@ -117,6 +122,7 @@ func TestCustomWriterColorOutput(t *testing.T) {
 	}
 }
 
+// Ensure that the prefix is formatted properly
 func TestPrefixFormatting(t *testing.T) {
 	t.Parallel()
 
@@ -150,6 +156,7 @@ func TestPrefixFormatting(t *testing.T) {
 	}
 }
 
+// Ensure that newlines contiain prefixes
 func TestLineSeparation(t *testing.T) {
 	t.Parallel()
 
@@ -215,6 +222,7 @@ func TestLineSeparation(t *testing.T) {
 	}
 }
 
+// Ensure the timestamp works
 func TestTimestampFeature(t *testing.T) {
 	t.Parallel()
 
@@ -237,6 +245,7 @@ func TestTimestampFeature(t *testing.T) {
 	assert.Regexp(t, `\d{2}:\d{2}:\d{2}:\d{3}`, output)
 }
 
+// Ensure that no output is allowed when silent
 func TestSilentMode(t *testing.T) {
 	t.Parallel()
 
@@ -257,6 +266,7 @@ func TestSilentMode(t *testing.T) {
 	assert.Empty(t, mock.written)
 }
 
+// Tests writer error handling
 func TestErrorHandling(t *testing.T) {
 	t.Parallel()
 

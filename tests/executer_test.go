@@ -90,6 +90,7 @@ func createBuzzkillProcess(command string, args []string) pp.Process {
 	}
 }
 
+// Ensure that the internal buzzkill command works
 func TestInternalBuzzkill(t *testing.T) {
 	t.Parallel()
 	var wg sync.WaitGroup
@@ -112,6 +113,7 @@ func TestInternalBuzzkill(t *testing.T) {
 	assert.True(t, buzzkilled.Load())
 }
 
+// Test if the process exits from an external buzzkill command
 func TestExternalBuzzkill(t *testing.T) {
 	t.Parallel()
 	var wg sync.WaitGroup
@@ -138,6 +140,7 @@ func TestExternalBuzzkill(t *testing.T) {
 	assert.Less(t, time.Since(t1), time.Duration(sleepDuration)*time.Second)
 }
 
+// Test a process successfully exiting and waiting
 func TestWait(t *testing.T) {
 	t.Parallel()
 	var wg sync.WaitGroup
@@ -219,6 +222,7 @@ func TestWait(t *testing.T) {
 
 }
 
+// Test process restart functionality
 func TestRestart(t *testing.T) {
 	t.Parallel()
 	var wg sync.WaitGroup
@@ -297,6 +301,7 @@ func TestRestart(t *testing.T) {
 	assert.Equal(t, pp.ProcessStatusExited, context.Status, "Final status should be exited")
 }
 
+// Ensure that restarts have propper delays
 func TestRestartWithDelays(t *testing.T) {
 	t.Parallel()
 	var wg sync.WaitGroup
@@ -374,6 +379,7 @@ func TestRestartWithDelays(t *testing.T) {
 	assert.Equal(t, pp.ProcessStatusExited, context.Status, "Final status should be exited")
 }
 
+// Ensure that the standard process delays actually work
 func TestStartDelay(t *testing.T) {
 	t.Parallel()
 	var wg sync.WaitGroup

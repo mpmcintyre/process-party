@@ -15,6 +15,7 @@ type CmdSettings struct {
 }
 
 // Exported functions
+// Create a basic command with sleep settings
 func CreateSleepCmdSettings(sleepDurationSeconds int) CmdSettings {
 	currentOS := runtime.GOOS
 	local := command
@@ -27,6 +28,7 @@ func CreateSleepCmdSettings(sleepDurationSeconds int) CmdSettings {
 	}
 }
 
+// Create a basic command with touch settings
 func CreateTouchCmdSettings(filename string) CmdSettings {
 	currentOS := runtime.GOOS
 	local := command
@@ -41,6 +43,7 @@ func CreateTouchCmdSettings(filename string) CmdSettings {
 	}
 }
 
+// Create a basic command with makedir settings
 func CreateMkdirCmdSettings(dirname string) CmdSettings {
 	currentOS := runtime.GOOS
 	local := command
@@ -54,6 +57,7 @@ func CreateMkdirCmdSettings(dirname string) CmdSettings {
 	}
 }
 
+// Create a basic command with fail settings
 func CreateFailCmdSettings() CmdSettings {
 	currentOS := runtime.GOOS
 	local := command
@@ -67,6 +71,7 @@ func CreateFailCmdSettings() CmdSettings {
 	}
 }
 
+// Run the custom touch command
 func Touch(path string) error {
 	x := CreateTouchCmdSettings(path)
 	cmd := exec.Command(x.Cmd, x.Args...)
@@ -74,6 +79,7 @@ func Touch(path string) error {
 	return err
 }
 
+// Run the custom mkdir command
 func Mkdir(path string) error {
 	x := CreateMkdirCmdSettings(path)
 	cmd := exec.Command(x.Cmd, x.Args...)
