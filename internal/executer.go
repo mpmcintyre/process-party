@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -169,6 +170,8 @@ func (e *ExecutionContext) emitBuzkill() {
 
 // Tell all goroutines related to this process to stop and exit
 func (e *ExecutionContext) BuzzkillProcess() {
+	e.infoWriter.Printf("Buzzkill  called")
+
 	e.executionMutex.RLock()
 	for i := range e.internalExitNotifiers {
 		if e.internalExitNotifiers[i] != nil {
@@ -208,10 +211,8 @@ func (e *ExecutionContext) handleProcessExit() {
 	exitCommand := ExitCommandWait
 	if e.exitEvent != ExitEventBuzzkilled {
 		if e.Status == ProcessStatusFailed || e.Status == ProcessStatusNotStarted {
-			e.errorWriter.Write([]byte("Process failed"))
 			exitCommand = e.Process.OnFailure
 		} else {
-			e.infoWriter.Write([]byte("Process exited"))
 			exitCommand = e.Process.OnComplete
 		}
 	}
@@ -319,17 +320,44 @@ func (c *ExecutionContext) execute() {
 	// Start the command
 	startErr := c.cmd.Start()
 	c.executionMutex.Unlock()
-	if startErr == nil {
-		c.setProcessStatus(ProcessStatusRunning)
-	}
+	// if startErr == nil {
+	// }
+
+	processDone := make(chan struct{}, 1)
+
 	// Go wait somewhere else lamo (*insert you cant sit with us meme*)
-	go c.cmd.Wait()
+	go func() {
+		c.cmd.Wait()
+		close(processDone)
+	}()
 
 	buzzkillChannel := c.getInternalExitNotifier()
 
 commandLoop:
 	for {
 		select {
+		case <-processDone:
+			state, err := c.cmd.Process.Wait()
+			if err != nil {
+				c.errorWriter.Write([]byte(fmt.Sprintf("Process wait error: %v", err)))
+				c.setProcessStatus(ProcessStatusFailed)
+			}
+
+			// Check if process was terminated by a signal
+			if status, ok := state.Sys().(syscall.WaitStatus); ok {
+				if status.Signaled() {
+					c.errorWriter.Write([]byte(fmt.Sprintf("Process terminated by signal: %v", status.Signal())))
+					c.exitCode = 128 + int(status.Signal())
+					c.setProcessStatus(ProcessStatusFailed)
+				} else {
+					c.exitCode = status.ExitStatus()
+					if c.exitCode != 0 {
+						c.setProcessStatus(ProcessStatusFailed)
+					}
+				}
+			}
+
+			break commandLoop
 		case value := <-c.stdIn: // Received std in
 			if c.cmd.Process != nil && c.cmd.ProcessState.ExitCode() < 0 && startErr != nil {
 				c.writePipe.Write([]byte(value + "\n"))
@@ -367,14 +395,19 @@ commandLoop:
 
 			// Display the PID on the first line
 			if !displayedPid && c.cmd.Process != nil {
+				c.setProcessStatus(ProcessStatusRunning)
 				c.infoWriter.Write([]byte(fmt.Sprintf("PID = %d", c.cmd.Process.Pid)))
 				c.Process.Pid = fmt.Sprintf("%d", c.cmd.Process.Pid)
 				displayedPid = true
 			}
 
 			// Handle the process exiting
-			if c.cmd.Process != nil && c.cmd.ProcessState.ExitCode() >= 0 || startErr != nil {
+			if c.cmd.Process != nil && c.cmd.ProcessState.ExitCode() >= 0 ||
+				startErr != nil ||
+				c.Status == ProcessStatusFailed ||
+				c.Status == ProcessStatusExited {
 				if c.cmd.ProcessState.ExitCode() == 0 {
+					c.errorWriter.Write([]byte("Detected Process exit"))
 					c.exitEvent = ExitEventInternal
 				} else if c.cmd.ProcessState.ExitCode() > 0 {
 					c.errorWriter.Write([]byte("Detected Process failure"))
@@ -386,7 +419,6 @@ commandLoop:
 					c.exitEvent = ExitEventInternal
 				}
 				c.exitCode = c.cmd.ProcessState.ExitCode()
-				c.cmd.Wait() // This is likely redundant as we listen up top, but best be sure
 				break commandLoop
 			}
 
@@ -400,6 +432,7 @@ commandLoop:
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
+	c.cmd.Wait() // This is likely redundant as we listen up top, but best be sure
 
 	// The process exits so quick we need to delay to ensure that the buzzkill command is sent
 	time.Sleep(time.Duration(10) * time.Millisecond)

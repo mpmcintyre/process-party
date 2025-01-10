@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -74,6 +75,7 @@ func TestLinkErrors(t *testing.T) {
 		{"No triggers", false, []string{}, []string{}, []string{}, 0},
 		{"Single existing dir", false, []string{existingDirPath}, []string{}, []string{}, 0},
 		{"Non existent dir", true, []string{nonExistentDir}, []string{}, []string{}, 0},
+		{"Allow duplicate triggers", false, []string{existingDirPath, existingDirPath}, []string{}, []string{}, 0},
 		{"No restarts allowed - restart once", true, []string{nonExistentDir}, []string{}, []string{}, 1},
 		{"No restarts allowed - restart forever", true, []string{nonExistentDir}, []string{}, []string{}, -1},
 	}
@@ -184,7 +186,7 @@ func TestFsTriggersBasic(t *testing.T) {
 	triggerInterval := 50
 	cmdSettings := testHelpers.CreateSleepCmdSettings(0)
 	process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0, "trigger")
-	process.Silent = true
+	process.Silent = false
 
 	var wg sync.WaitGroup
 	context := process.CreateContext(&wg)
@@ -193,11 +195,12 @@ func TestFsTriggersBasic(t *testing.T) {
 	context.Process.Trigger.FileSystem.ContainFilters = []string{}
 
 	os.RemoveAll(tempDir)
-	os.MkdirAll(tempDir, 0755)
+	err := os.MkdirAll(tempDir, fs.ModeDir)
+	assert.Nil(t, err, "Could not create the temp folder")
 
-	err := pp.LinkProcessTriggers([]*pp.ExecutionContext{context})
+	err = pp.LinkProcessTriggers([]*pp.ExecutionContext{context})
 
-	assert.Nil(t, err, "File/Folder not found")
+	assert.Nil(t, err, "Error when creating trigger links")
 	notificationsChannel := context.GetProcessNotificationChannel()
 	buzzkillChannel := context.GetBuzkillEmitter()
 
@@ -259,6 +262,7 @@ func TestFsTriggersBasic(t *testing.T) {
 				t.Errorf("Failed to create file %s: %v", filepath.Join(tempDir, filename+strconv.Itoa(i)), err)
 				continue
 			}
+			f.Sync()
 			f.Close()
 		}
 		// Make sure the trigger does not run when an empty directory is created
@@ -273,12 +277,12 @@ func TestFsTriggersBasic(t *testing.T) {
 
 		for i := range createdFilesInSubdirectory {
 			time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
-
 			f, err := os.Create(filepath.Join(subDir, filename+strconv.Itoa(i)))
 			if err != nil {
 				t.Errorf("Failed to create file %s: %v", filepath.Join(subDir, filename+strconv.Itoa(i)), err)
 				continue
 			}
+			f.Sync()
 			f.Close()
 		}
 
@@ -400,12 +404,12 @@ func TestFsTriggersNoDoubleProcessing(t *testing.T) {
 		// Create files in watched directory
 		for i := range createdFiles {
 			time.Sleep(time.Duration(triggerIntervals) * time.Millisecond)
-
 			f, err := os.Create(filepath.Join(tempDir, filename+strconv.Itoa(i)))
 			if err != nil {
 				t.Errorf("Failed to create file %s: %v", filepath.Join(tempDir, filename+strconv.Itoa(i)), err)
 				continue
 			}
+			f.Sync()
 			f.Close()
 		}
 

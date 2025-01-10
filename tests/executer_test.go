@@ -98,6 +98,7 @@ func TestInternalBuzzkill(t *testing.T) {
 	context := buzzkillTask.CreateContext(
 		&wg,
 	)
+	buzzkillTask.Silent = true
 
 	var buzzkilled atomic.Bool
 	bkChan := context.GetBuzkillEmitter()
@@ -148,7 +149,7 @@ func TestWait(t *testing.T) {
 	if delay/1000 > sleepDuration/2 {
 		t.Fatalf("delay duration cannot be larger than sleepDuration/2, delay=%d ms, sleep=%d s", delay, sleepDuration)
 	}
-	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
+	cmdSettings := testHelpers.CreateSleepCmdSettings(0)
 	completeTask := createWaitProcess(cmdSettings.Cmd, cmdSettings.Args, 0)
 
 	context := completeTask.CreateContext(
@@ -226,7 +227,7 @@ func TestRestart(t *testing.T) {
 	sleepDuration := 1 // Seconds
 	restartAttempts := 3
 
-	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
+	cmdSettings := testHelpers.CreateSleepCmdSettings(0)
 	sleepTask := createRestartProcess(cmdSettings.Cmd, cmdSettings.Args, restartAttempts, 0)
 	sleepTask.Silent = true
 	sleepTask.DisplayPid = false

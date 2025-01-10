@@ -62,12 +62,17 @@ func (c *ExecutionContext) recursivelyWatch(event fsnotify.Event, watcher *fsnot
 			for _, dir := range dirs {
 				dirEntries := strings.Split(event.Name, string(os.PathSeparator))
 				if dir.Name() == dirEntries[len(dirEntries)-1] && dir.Type().IsDir() {
-					c.infoWriter.Write([]byte(fmt.Sprintf("A new subdirectory was created in FS watcher, monitoring %s", event.Name)))
-					err := watcher.Add(event.Name)
+					absPath, err := filepath.Abs(filepath.Clean(event.Name))
+					if err != nil {
+						c.errorWriter.Write([]byte("Invalid path: " + event.Name))
+						return
+					}
+
+					c.infoWriter.Write([]byte(fmt.Sprintf("A new subdirectory was created in FS watcher, monitoring %s", absPath)))
+					err = watcher.Add(absPath)
 					if err != nil {
 						c.errorWriter.Write([]byte(fmt.Sprintf("Could not monitor file, error: %s", err.Error())))
 					}
-
 				}
 			}
 		}
@@ -92,8 +97,24 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 		return nil, errors.New("Restarting triggered processes can lead to undesired behaviour. Remove triggers or restart attempts on process [" + c.Process.Name + "]")
 	}
 
+	addedPaths := []string{}
 	for _, item := range c.Process.Trigger.FileSystem.Watch {
-		err := watcher.Add(item)
+		absPath, err := filepath.Abs(filepath.Clean(item))
+		if err != nil {
+			c.errorWriter.Write([]byte("Invalid path: " + item))
+			return nil, err
+		}
+
+		for _, existingPath := range addedPaths {
+			if existingPath == absPath {
+				c.errorWriter.Write([]byte("Duplicate path: " + item))
+				continue
+			}
+		}
+		c.infoWriter.Write([]byte("Monitoring path: " + absPath))
+
+		addedPaths = append(addedPaths, absPath)
+		err = watcher.Add(absPath)
 		if err != nil {
 			c.errorWriter.Write([]byte("File/Directory does not exist: " + item))
 			watcher.Close()
@@ -107,6 +128,8 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 
 	// Start file watcher
 	go func() {
+		defer close(trigger)
+
 		debounceTimer := time.Now()
 		debounceTime := 5 // 5 ms
 
@@ -118,11 +141,10 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 					watcher.Close()
 					return
 				}
-
 				if filter(event.Name) && time.Since(debounceTimer) > time.Duration(debounceTime)*time.Millisecond {
 					c.recursivelyWatch(event, watcher)
-
-					trigger <- fmt.Sprintf("FS trigger captured - %s\n", event.String())
+					filepath := strings.Split(event.Name, string(os.PathSeparator))
+					trigger <- fmt.Sprintf("FS trigger captured - %s	%s\n", event.Op, filepath[len(filepath)-1])
 					debounceTimer = time.Now()
 				}
 
@@ -130,7 +152,6 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 				c.errorWriter.Write([]byte(fmt.Sprintf("An unexpected error occured, %s", err.Error())))
 				if !ok {
 					watcher.Close()
-					return
 				}
 			case <-exitChannel:
 				c.infoWriter.Write([]byte("Process exiting, closing FS watcher"))
@@ -139,7 +160,6 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 			}
 		}
 	}()
-
 	return trigger, nil
 }
 

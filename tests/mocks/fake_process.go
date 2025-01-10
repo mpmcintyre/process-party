@@ -25,11 +25,13 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+
 	case "touch":
 		err := os.WriteFile(args[1], []byte{}, fs.ModePerm)
 		if err != nil {
 			log.Fatal(err)
 		}
+
 	case "fail":
 		fmt.Printf("failing task on purpouse\n")
 		os.Exit(1)
