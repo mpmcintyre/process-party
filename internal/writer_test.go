@@ -1,6 +1,7 @@
 package pp
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -67,11 +68,14 @@ func TestCustomWriterBasicOutput(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, len(message), n)
-	assert.Contains(t, string(mock.written), runTask.GetFgColour()("[TEST]")+" "+message)
-	assert.NotContains(t, string(mock.written), "[TEST] hello world") // does not contain the raw string
-	assert.Contains(t, string(mock.written), "\n")
-}
 
+	// Get the color escape sequences
+	coloredPrefix := runTask.GetFgColour()("[TEST]")
+
+	// Test the actual colored output
+	expectedOutput := fmt.Sprintf("%s %s\n", coloredPrefix, message)
+	assert.Equal(t, expectedOutput, string(mock.written))
+}
 func TestCustomWriterColorOutput(t *testing.T) {
 	t.Parallel()
 

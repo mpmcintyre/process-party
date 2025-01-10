@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
 	"strconv"
@@ -27,7 +26,7 @@ func main() {
 		}
 
 	case "touch":
-		err := os.WriteFile(args[1], []byte{}, fs.ModePerm)
+		err := os.WriteFile(args[1], []byte{}, 0755)
 		if err != nil {
 			log.Fatal(err)
 		}

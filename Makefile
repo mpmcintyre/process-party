@@ -30,7 +30,7 @@ tests: mocks unit-tests
 	go test ./tests -timeout 2s
 
 unit-test-verbose: mocks
-	go test -cpuprofile cpu.prof -memprofile mem.prof -bench . ./internal -v -timeout 30s
+	go test -cpuprofile cpu.prof -memprofile mem.prof -bench . ./internal -v -timeout 30s 
 
 tests-verbose: unit-test-verbose
-	go test -cpuprofile cpu.prof -memprofile mem.prof -bench . ./tests -v -timeout 30s
+	go test -cpuprofile cpu.prof -memprofile mem.prof -bench . ./tests -v -timeout 30s 
