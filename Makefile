@@ -23,7 +23,7 @@ run-yml:
 mocks:
 	go build -o ./tests/mocks/build/fake_process$(EXT) ./tests/mocks/fake_process.go
 
-unit-test:
+unit-tests:
 	go test ./internal -v -timeout 2s
 
 tests: mocks unit-tests

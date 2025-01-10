@@ -8,9 +8,7 @@ RUN apt-get update && apt-get install -y make
 # Download Go modules
 COPY . .
 RUN go get .
-# Force color output
-ENV TERM=xterm-256color
-ENV FORCE_COLOR=1
+
 # Copy the source code. Note the slash at the end, as explained in
 # https://docs.docker.com/reference/dockerfile/#copy
 
