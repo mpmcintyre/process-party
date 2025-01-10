@@ -50,7 +50,7 @@ func TestLinkErrors(t *testing.T) {
 	nonExistingProcessName := "non-link-testslol"
 	numberOfProcesses := 10
 
-	err := os.Mkdir(existingDirPath, 0755)
+	err := os.Mkdir(existingDirPath, fs.ModePerm)
 	assert.Nil(t, err, "Have to make a test directory")
 
 	var wg sync.WaitGroup
@@ -195,7 +195,7 @@ func TestFsTriggersBasic(t *testing.T) {
 	context.Process.Trigger.FileSystem.ContainFilters = []string{}
 
 	os.RemoveAll(tempDir)
-	err := os.MkdirAll(tempDir, fs.ModeDir)
+	err := os.MkdirAll(tempDir, fs.ModePerm)
 	assert.Nil(t, err, "Could not create the temp folder")
 
 	err = pp.LinkProcessTriggers([]*pp.ExecutionContext{context})
@@ -268,11 +268,11 @@ func TestFsTriggersBasic(t *testing.T) {
 		// Make sure the trigger does not run when an empty directory is created
 		for i := range createdDirectories {
 			time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
-			os.Mkdir(filepath.Join(tempDir, filename+"dir"+strconv.Itoa(i)), 0755)
+			os.Mkdir(filepath.Join(tempDir, filename+"dir"+strconv.Itoa(i)), fs.ModePerm)
 		}
 		// Create subdirectory for creating files inside a subdirectory
 		time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
-		os.MkdirAll(subDir, 0755)
+		os.MkdirAll(subDir, fs.ModePerm)
 		time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
 
 		for i := range createdFilesInSubdirectory {
@@ -343,7 +343,7 @@ func TestFsTriggersNoDoubleProcessing(t *testing.T) {
 	context.Process.Trigger.FileSystem.ContainFilters = []string{}
 
 	os.RemoveAll(tempDir)
-	os.MkdirAll(tempDir, 0755)
+	os.MkdirAll(tempDir, fs.ModePerm)
 
 	err := pp.LinkProcessTriggers([]*pp.ExecutionContext{context})
 
