@@ -183,7 +183,7 @@ func TestFsTriggersBasic(t *testing.T) {
 	createdFilesInSubdirectory := 3
 	createdDirectories := 3
 	expectedRuns := 10
-	triggerInterval := 50
+	triggerInterval := 60
 	cmdSettings := testHelpers.CreateSleepCmdSettings(0)
 	process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0, "trigger")
 	process.Silent = true
