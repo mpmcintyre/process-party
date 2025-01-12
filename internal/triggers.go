@@ -100,6 +100,7 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 	}
 
 	addedPaths := []string{}
+
 	for _, item := range c.Process.Trigger.FileSystem.Watch {
 		absPath, err := filepath.Abs(filepath.Clean(item))
 		if err != nil {
@@ -107,12 +108,11 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 			return nil, err
 		}
 
-		for _, existingPath := range addedPaths {
-			if existingPath == absPath {
-				c.errorWriter.Write([]byte("Duplicate path: " + item))
-				continue
-			}
+		if contains(addedPaths, absPath) {
+			c.errorWriter.Printf("Duplicate trigger path: \"%s\" - not monitoring twice", item)
+			continue
 		}
+
 		c.infoWriter.Write([]byte("Monitoring path: " + absPath))
 
 		addedPaths = append(addedPaths, absPath)
@@ -133,7 +133,7 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 		defer close(trigger)
 
 		debounceTimer := time.Now()
-		debounceTime := 5 // 5 ms
+		debounceTime := 50 //  ms
 
 		for {
 			select {
@@ -227,11 +227,18 @@ func LinkProcessTriggers(contexts []*ExecutionContext) error {
 	}
 
 	applyTriggers := func(triggers []string, signal ProcessStatus, context *ExecutionContext) error {
-
+		monitoredProcesses := []string{}
 		for _, process := range triggers {
 			if process == context.Process.Name {
-
+				return errors.New("Circular trigger detected: " + process + " canot depend on itself")
 			}
+			if contains(monitoredProcesses, process) {
+				context.errorWriter.Printf("Duplicate trigger process: \"%s\" - not monitoring twice", process)
+				continue
+			}
+
+			monitoredProcesses = append(monitoredProcesses, process)
+
 			if value, exists := x[process]; exists {
 				if contains(value.Process.Trigger.Process.OnComplete, process) {
 					return errors.New("Circular trigger detected: " + value.Process.Name + " and " + process + " trigger each other")
