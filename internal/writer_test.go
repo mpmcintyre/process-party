@@ -54,15 +54,13 @@ func TestCustomWriterBasicOutput(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockWriter{}
-	runTask := &RunTask{
-		Process: Process{
-			Name:   "test",
-			Prefix: "TEST",
-		},
+	process := &Process{
+		Name:   "test",
+		Prefix: "TEST",
 	}
 	writer := &customWriter{
 		w:        mock,
-		process:  &runTask.Process,
+		process:  process,
 		severity: "info",
 	}
 
@@ -73,7 +71,7 @@ func TestCustomWriterBasicOutput(t *testing.T) {
 	assert.Equal(t, len(message), n)
 
 	// Get the color escape sequences
-	coloredPrefix := runTask.GetFgColour()("[TEST]")
+	coloredPrefix := process.GetFgColour()("[TEST]")
 
 	// Test the actual colored output
 	expectedOutput := fmt.Sprintf("%s %s\n", coloredPrefix, message)
@@ -98,16 +96,15 @@ func TestCustomWriterColorOutput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := &mockWriter{}
-			runTask := &RunTask{
-				Process: Process{
-					Name:   "test",
-					Prefix: "TEST",
-					Color:  tt.color,
-				}}
+			process := &Process{
+				Name:   "test",
+				Prefix: "TEST",
+				Color:  tt.color,
+			}
 
 			writer := &customWriter{
 				w:        mock,
-				process:  &runTask.Process,
+				process:  process,
 				severity: tt.severity,
 			}
 
@@ -140,15 +137,14 @@ func TestPrefixFormatting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := &mockWriter{}
-			runTask := &RunTask{
-				Process: Process{
-					Prefix:     tt.prefix,
-					DisplayPid: tt.displayPid,
-					Pid:        tt.pid,
-				}}
+			process := &Process{
+				Prefix:     tt.prefix,
+				DisplayPid: tt.displayPid,
+				Pid:        tt.pid,
+			}
 			writer := &customWriter{
 				w:       mock,
-				process: &runTask.Process,
+				process: process,
 			}
 			writer.createPrefix()
 			assert.Contains(t, writer.prefix, tt.expected)
@@ -193,14 +189,13 @@ func TestLineSeparation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := &mockWriter{}
-			runTask := &RunTask{
-				Process: Process{
-					Prefix:           "TEST",
-					SeperateNewLines: tt.separateLines,
-				}}
+			process := &Process{
+				Prefix:           "TEST",
+				SeperateNewLines: tt.separateLines,
+			}
 			writer := &customWriter{
 				w:       mock,
-				process: &runTask.Process,
+				process: process,
 			}
 
 			_, err := writer.Write([]byte(tt.input))
@@ -227,14 +222,13 @@ func TestTimestampFeature(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockWriter{}
-	runTask := &RunTask{
-		Process: Process{
-			Prefix:        "TEST",
-			ShowTimestamp: true,
-		}}
+	process := &Process{
+		Prefix:        "TEST",
+		ShowTimestamp: true,
+	}
 	writer := &customWriter{
 		w:       mock,
-		process: &runTask.Process,
+		process: process,
 	}
 
 	_, err := writer.Write([]byte("test message"))
@@ -250,20 +244,39 @@ func TestSilentMode(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockWriter{}
-	runTask := &RunTask{
-		Process: Process{
-			Prefix: "TEST",
-			Silent: true,
-		}}
+	process := &Process{
+		Prefix: "TEST",
+		Silent: true,
+	}
 	writer := &customWriter{
 		w:       mock,
-		process: &runTask.Process,
+		process: process,
 	}
 
 	n, err := writer.Write([]byte("test message"))
 	assert.NoError(t, err)
 	assert.Equal(t, 0, n)
 	assert.Empty(t, mock.written)
+}
+
+// Test unnamed test
+
+func TestUnnamed(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockWriter{}
+	process := &Process{
+		Prefix: "",
+	}
+	writer := &customWriter{
+		w:       mock,
+		process: process,
+	}
+
+	n, err := writer.Write([]byte("test message"))
+	assert.NoError(t, err)
+	assert.Equal(t, len("test message"), n)
+	assert.Equal(t, "test message\n", string(mock.written))
 }
 
 // Tests writer error handling
@@ -290,11 +303,11 @@ func TestErrorHandling(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := &mockWriter{err: tt.writerError}
-			runTask := &RunTask{
-				Process: Process{Prefix: "TEST"}}
+			process := &Process{
+				Prefix: "TEST"}
 			writer := &customWriter{
 				w:       mock,
-				process: &runTask.Process,
+				process: process,
 			}
 
 			_, err := writer.Write([]byte("test message"))

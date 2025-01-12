@@ -18,6 +18,14 @@ import (
 )
 
 var execCommands []string
+var generateConfig *bool
+
+func createSectionHeading(length int, character string, title string) string {
+	wraplength := (length - len(title)) / 2
+	wrap := strings.Repeat(character, wraplength)
+	title = wrap + title + wrap
+	return title
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -35,20 +43,47 @@ using ctrl+c or input "exit" into the command line.
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 && len(execCommands) == 0 {
-			return errors.New("please provide either a directory or execution commands to run in parallel")
-		}
 
 		// Print ascii art
-		color.HiGreen("\n   ___                             ___           __      \n  / _ \\_______  _______ ___ ___   / _ \\___ _____/ /___ __\n / ___/ __/ _ \\/ __/ -_|_-<(_-<  / ___/ _ `/ __/ __/ // /\n/_/  /_/  \\___/\\__/\\__/___/___/ /_/   \\_,_/_/  \\__/\\_, / \n                                                  /___/  ")
+		color.HiGreen("   ___                             ___           __      \n  / _ \\_______  _______ ___ ___   / _ \\___ _____/ /___ __\n / ___/ __/ _ \\/ __/ -_|_-<(_-<  / ___/ _ `/ __/ __/ // /\n/_/  /_/  \\___/\\__/\\__/___/___/ /_/   \\_,_/_/  \\__/\\_, / \n                                                  /___/  ")
+
+		sectionHeadingLength := 80
+		headingChar := "-"
 		// Create the configuration to store settings and process configurations
 		config := pp.CreateConfig()
 
+		fmt.Println()
+		color.HiBlack(createSectionHeading(sectionHeadingLength, headingChar, "Parsing inputs"))
+
+		// If the user wishes to generate an empty config, asist in generating a config
+		if *generateConfig {
+			path := "process-party.yml"
+			if len(args) != 0 {
+				path = args[0]
+			}
+			err := config.GenerateExampleConfig(path)
+			return err
+		}
+
 		// Parse the input file if the user passes in an argument
 		if len(args) != 0 {
+			// Parse the input file path
 			err := config.ParseFile(args[0], false)
 			if err != nil {
 				return err
+			}
+		} else {
+			// Check if there is a process-party file in parent dir
+
+			targetFile, err := config.ScanDir(".")
+			if err != nil {
+				return err
+			}
+			if targetFile != "" {
+				err := config.ParseFile(targetFile, false)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
@@ -59,6 +94,12 @@ using ctrl+c or input "exit" into the command line.
 				return err
 			}
 		}
+
+		color.HiBlack("Input is active - std in to commands using [all] or specific command using [<cmd prefix>]")
+		color.HiBlack("Get the status using \"status\" or \"s\", or quit the party using \"exit\" or ctrl+c")
+		fmt.Println()
+		color.HiBlack(createSectionHeading(sectionHeadingLength, headingChar, "Linking triggers"))
+		fmt.Println()
 
 		// Create the waitgroup
 		var wg sync.WaitGroup
@@ -74,9 +115,6 @@ using ctrl+c or input "exit" into the command line.
 		// Start an input stream monitor
 		go func() {
 			reader := bufio.NewReader(os.Stdin)
-			fmt.Println("Input is active - std in to commands using [all] or specific command using [<cmd prefix>]")
-			fmt.Println("Get the status using \"status\" or \"s\", or quit the party using \"exit\" or ctrl+c")
-			fmt.Println("-------------------------------------------------------")
 
 		input_loop:
 			for {
@@ -128,6 +166,14 @@ using ctrl+c or input "exit" into the command line.
 						fmt.Println()
 					}
 
+				case "help":
+					color.HiBlack(`The input allows you to view the status of all
+commands with the "status" command, pipe input to a
+specific command using <command name|command prefix>:<input>
+e.g. "cmd:echo hello", or pipe input to all commands using 
+"all:<input>". Gracefully shutdown all processes using ctrl+c 
+or input "exit" into the command line.`)
+
 				case "exit":
 					fmt.Println("Exiting all")
 					for _, context := range runContexts {
@@ -159,6 +205,13 @@ using ctrl+c or input "exit" into the command line.
 			}
 		}()
 
+		fmt.Println()
+		color.HiBlack(createSectionHeading(sectionHeadingLength, headingChar, "Launching"))
+		fmt.Println()
+		if len(runContexts) == 0 {
+			return errors.New("no processes to run")
+		}
+
 		// Start the tasks
 		for _, context := range runContexts {
 			context.Start()
@@ -179,4 +232,5 @@ func Execute() {
 
 func init() {
 	rootCmd.Flags().StringSliceVarP(&execCommands, "execute", "e", execCommands, "Execute command (can be used multiple times)")
+	generateConfig = rootCmd.Flags().BoolP("generate", "g", false, "Generate blank config")
 }

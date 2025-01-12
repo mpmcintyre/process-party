@@ -96,7 +96,7 @@ func recursiveSearchForEq(itemA map[string]interface{}, itemB map[string]interfa
 
 // Returns true if a default value is found
 func containsDefaultValues(process pp.Process) bool {
-	dp := pp.RunTask{}
+	dp := pp.Process{}
 	dpString, err := json.Marshal(dp)
 	if err != nil {
 		fmt.Println("Error marshaling JSON:", err)
