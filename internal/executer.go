@@ -7,9 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"sync"
-	"syscall"
 	"time"
 )
+
+var executionBuzkillMonitor chan bool
 
 // Communication from task to main thread
 type (
@@ -35,6 +36,7 @@ type (
 		executionMutex           *sync.RWMutex
 		Status                   ProcessStatus
 		restartCounter           int
+		killAttemptCounter       int
 	}
 )
 
@@ -153,7 +155,9 @@ func (e *ExecutionContext) closeChannels() {
 		}
 	}
 
-	close(e.stdIn)
+	if e.stdIn != nil {
+		close(e.stdIn)
+	}
 	e.stdIn = nil
 
 	// Triggers should close themselves on internal exit emitted (dont close here)
@@ -177,8 +181,6 @@ func (e *ExecutionContext) emitBuzkill() {
 
 // Tell all goroutines related to this process to stop and exit
 func (e *ExecutionContext) BuzzkillProcess() {
-	e.infoWriter.Printf("Buzzkill  called")
-
 	e.executionMutex.RLock()
 	for i := range e.internalExitNotifiers {
 		if e.internalExitNotifiers[i] != nil {
@@ -316,6 +318,7 @@ func (c *ExecutionContext) execute() {
 	c.setProcessStatus(ProcessStatusNotStarted)
 	c.executionMutex.Lock()
 	// Create command
+	// c.Process.Args = append(c.Process.Args, "--color=force")
 	c.cmd = exec.Command(c.Process.Command, c.Process.Args...)
 	c.cmd.Env = os.Environ() // Set the full environment, including PATH
 	// Create IO
@@ -344,64 +347,25 @@ func (c *ExecutionContext) execute() {
 		close(processDone)
 	}()
 
-	buzzkillChannel := c.getInternalExitNotifier()
+	if executionBuzkillMonitor == nil {
+		executionBuzkillMonitor = c.getInternalExitNotifier()
+	}
 
 commandLoop:
 	for {
 		select {
 		case <-processDone:
-			state, err := c.cmd.Process.Wait()
-			if err != nil {
-				c.errorWriter.Write([]byte(fmt.Sprintf("Process wait error: %v", err)))
-				c.setProcessStatus(ProcessStatusFailed)
-			}
-
-			// Check if process was terminated by a signal
-			if status, ok := state.Sys().(syscall.WaitStatus); ok {
-				if status.Signaled() {
-					c.errorWriter.Write([]byte(fmt.Sprintf("Process terminated by signal: %v", status.Signal())))
-					c.exitCode = 128 + int(status.Signal())
-					c.setProcessStatus(ProcessStatusFailed)
-				} else {
-					c.exitCode = status.ExitStatus()
-					if c.exitCode != 0 {
-						c.setProcessStatus(ProcessStatusFailed)
-					}
-				}
-			}
-
 			break commandLoop
 		case value := <-c.stdIn: // Received std in
 			if c.cmd.Process != nil && c.cmd.ProcessState.ExitCode() < 0 && startErr != nil {
 				c.writePipe.Write([]byte(value + "\n"))
 			}
-		case <-buzzkillChannel: // Recieved buzzkill
+
+		case <-executionBuzkillMonitor: // Recieved buzzkill
 			c.exitEvent = ExitEventBuzzkilled
 			c.infoWriter.Write([]byte("Recieved buzzkill command"))
 			// Wait for timeout_on_exit duration
-			startTime := time.Now()
-			timeout := time.Duration(c.Process.TimeoutOnExit) * time.Second
-			if c.cmd.Process != nil {
-				c.cmd.Process.Signal(os.Kill)
-			} else {
-				break commandLoop
-			}
-			time.Sleep(100 * time.Millisecond)
-			for {
-				elapsed := time.Since(startTime)
-				if c.cmd.ProcessState != nil {
-					break
-				}
-				if elapsed > timeout {
-					if c.cmd.Process != nil {
-						c.infoWriter.Write([]byte("Gracefull shutdown timed out - killing process"))
-						c.cmd.Process.Kill()
-					}
-					break
-				}
-				time.Sleep(10 * time.Millisecond)
-			}
-			c.setProcessStatus(ProcessStatusExited)
+			c.killExecution()
 			break commandLoop
 
 		default:
@@ -496,17 +460,25 @@ func (e *ExecutionContext) Start() {
 			case message := <-triggerChan:
 				e.infoWriter.Printf("%s\n", message)
 				if e.Status != ProcessStatusWaitingTrigger {
-					e.errorWriter.Printf("Can't start process, process is already running")
-					continue
+					if !e.Process.Trigger.EndOnNew {
+						e.errorWriter.Printf("Can't start process, process is already running")
+						break
+					}
+					err := e.killExecution()
+					if err != nil {
+						e.BuzzkillProcess()
+					}
 				}
 
 				if e.exitEvent != ExitEventInternal {
 					break monitorLoop
 				}
-				e.execute()
-				e.Process.Pid = ""
-				e.setProcessStatus(ProcessStatusWaitingTrigger)
-				time.Sleep(time.Duration(10) * time.Millisecond)
+				go func() {
+					e.execute()
+					e.Process.Pid = ""
+					e.setProcessStatus(ProcessStatusWaitingTrigger)
+					time.Sleep(time.Duration(10) * time.Millisecond)
+				}()
 
 			case <-exitNotifier:
 				e.BuzzkillProcess()

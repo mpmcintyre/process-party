@@ -6,41 +6,10 @@ import (
 	"testing"
 	"time"
 
+	pp "github.com/mpmcintyre/process-party/internal"
 	testHelpers "github.com/mpmcintyre/process-party/test_helpers"
 	"github.com/stretchr/testify/assert"
 )
-
-// Utility function to check if a directory exists
-func DirectoryExists(dirname string, pathToDir string) (bool, error) {
-	dirs, err := os.ReadDir(pathToDir)
-	if err != nil {
-		return false, err
-	}
-
-	for _, dir := range dirs {
-		if dir.Name() == dirname && dir.Type().IsDir() {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-// Utility function to check if a file exists
-func FileExists(filename string, path string) (bool, error) {
-	dirs, err := os.ReadDir(path)
-	if err != nil {
-		return false, err
-	}
-
-	for _, dir := range dirs {
-		if dir.Name() == filename && dir.Type().IsRegular() {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
 
 // General mock functions
 func TestMockFunctions(t *testing.T) {
@@ -48,7 +17,7 @@ func TestMockFunctions(t *testing.T) {
 	t.Run("Touch", func(t *testing.T) {
 		t.Parallel()
 		filename := "test.file"
-		dirFound, err := FileExists(filename, "./")
+		dirFound, err := pp.FileExists(filename, "./")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -65,7 +34,7 @@ func TestMockFunctions(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		dirFound, err = FileExists(filename, "./")
+		dirFound, err = pp.FileExists(filename, "./")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -79,7 +48,7 @@ func TestMockFunctions(t *testing.T) {
 	t.Run("Mkdir", func(t *testing.T) {
 		t.Parallel()
 		dirName := "test_dir"
-		dirFound, err := DirectoryExists(dirName, "./")
+		dirFound, err := pp.DirectoryExists(dirName, "./")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -96,7 +65,7 @@ func TestMockFunctions(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		dirFound, err = DirectoryExists(dirName, "./")
+		dirFound, err = pp.DirectoryExists(dirName, "./")
 		if err != nil {
 			t.Fatal(err)
 		}

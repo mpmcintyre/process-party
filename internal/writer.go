@@ -30,12 +30,19 @@ func emptyMessage(s string) bool {
 
 // Creates the prefix so we dont need to do it on every message
 func (c *customWriter) createPrefix() {
+	if c.process.Prefix == "" && !c.process.DisplayPid {
+		c.prefix = ""
+		return
+	}
 	c.prefix = "[" + c.process.Prefix
 	if c.process.DisplayPid {
 		c.prefix = c.prefix + "-" + c.process.Pid
 
 	}
 	c.prefix = c.prefix + "]"
+	colourFunc := c.process.GetFgColour()
+	c.prefix = colourFunc(c.prefix)
+	c.prefix += " "
 }
 
 // Utility function to simplyfy printing strings
@@ -48,7 +55,7 @@ func (c customWriter) Write(p []byte) (int, error) {
 		return 0, nil
 	}
 
-	if c.prefix == "" {
+	if c.prefix == "" && (c.process.Prefix != "" || c.process.DisplayPid) {
 		c.createPrefix()
 	}
 
@@ -71,30 +78,27 @@ func (c customWriter) Write(p []byte) (int, error) {
 			if emptyMessage(message) {
 				continue
 			}
-			colourFunc := c.process.GetFgColour()
-			c.prefix = colourFunc(c.prefix)
+
 			if c.severity == "error" {
 				message = color.RedString(message)
 			}
 			if c.process.ShowTimestamp {
 				message = timeString + "	" + message
 			}
-			n, err := c.w.Write([]byte(c.prefix + " " + message + "\n"))
+			n, err := c.w.Write([]byte(c.prefix + message + "\n"))
 			if err != nil {
 				return n, err
 			}
 
 		}
 	} else {
-		colourFunc := c.process.GetFgColour()
-		c.prefix = colourFunc(c.prefix)
 		if c.severity == "error" {
 			message = color.RedString(message)
 		}
 		if c.process.ShowTimestamp {
 			message = timeString + "	" + message
 		}
-		n, err := c.w.Write([]byte(c.prefix + " " + message + "\n"))
+		n, err := c.w.Write([]byte(c.prefix + message + "\n"))
 		if err != nil {
 			return n, err
 		}
