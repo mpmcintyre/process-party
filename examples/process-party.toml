@@ -1,0 +1,60 @@
+# Example xproc configuration file
+
+show_timestamp = true
+indicate_every_line=true
+
+[[processes]]
+name = "cmd"
+command = "cmd"
+prefix = "FRONT"
+color = "green"
+on_failure = "wait"
+on_complete =  "wait"
+stdin_on_start = "echo hello\nexit"
+
+[[processes]]
+name = "example fail"
+command = "go"
+show_pid = false
+args = ["run", "main.go"]
+prefix = "BACK"
+color = "blue"
+on_failure = "restart"
+on_complete = "restart"
+restart_attempts = 3
+silent = false
+
+[[processes]]
+name = "example fail2"
+command = "go"
+show_pid = false
+args = ["run", "main.go"]
+prefix = "TRIG"
+color = "yellow"
+on_failure = "wait"
+on_complete = "wait"
+restart_attempts = 0
+silent = false
+  [processes.trigger]
+    [processes.trigger.filesystem]
+      watch = [".", "."]
+      ignore = ["test"]
+      filter_for = ["*.test"]
+    [processes.trigger.process]
+      on_start = ["example fail"]
+
+# [[processes]]
+# name = "example fail2"
+# command = "go"
+# args = ["run", "main.go"]
+# prefix = "BACK2"
+# color = "red"
+# on_failure = "buzzkill"
+
+# [[processes]]
+# name = "echo"
+# command = "echo hjello"
+# prefix = "FRONT"
+# color = "green"
+# on_failure = "buzzkill"
+# on_complete = "wait"
