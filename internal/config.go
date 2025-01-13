@@ -21,6 +21,7 @@ type (
 
 	FileSystemTrigger struct {
 		NonRecursive   bool     `toml:"non_recursive" json:"non_recursive" yaml:"non_recursive"` // Do not recursively watch new directories
+		DebounceTime   uint16   `toml:"debounce_ms" json:"debounce_ms" yaml:"debounce_ms"`       // Time between fs triggers
 		Watch          []string `toml:"watch" json:"watch" yaml:"watch"`                         // List of directories/folders to watch
 		Ignore         []string `toml:"ignore" json:"ignore" yaml:"ignore"`                      // List of directories/folders to ignore
 		ContainFilters []string `toml:"filter_for" json:"filter_for" yaml:"filter_for"`          // Include or exclude files

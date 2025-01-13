@@ -133,7 +133,7 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 		defer close(trigger)
 
 		debounceTimer := time.Now()
-		debounceTime := 50 //  ms
+		debounceTime := c.Process.Trigger.FileSystem.DebounceTime //  ms
 
 		for {
 			select {

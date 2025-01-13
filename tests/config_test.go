@@ -44,6 +44,7 @@ func createRunTask(increment int, nameStamp string) pp.Process {
 		Trigger: pp.Trigger{
 			EndOnNew: true,
 			FileSystem: pp.FileSystemTrigger{
+				DebounceTime:   50,
 				NonRecursive:   true,
 				Watch:          []string{"test"},
 				Ignore:         []string{"test"},
