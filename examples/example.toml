@@ -10,7 +10,16 @@ prefix = "FRONT"
 color = "green"
 on_failure = "wait"
 on_complete =  "wait"
-stdin_on_start = "echo hello\nexit"
+stdin_on_start = "echo hello"
+  [processes.trigger]
+    end_on_new = true
+    [processes.trigger.filesystem]
+      watch = [".", "."]
+      ignore = ["test"]
+      filter_for = ["*.test"]
+    [processes.trigger.process]
+      # on_start = ["example fail"]
+
 
 [[processes]]
 name = "example fail"
@@ -35,13 +44,6 @@ on_failure = "wait"
 on_complete = "wait"
 restart_attempts = 0
 silent = false
-  [processes.trigger]
-    [processes.trigger.filesystem]
-      watch = [".", "."]
-      ignore = ["test"]
-      filter_for = ["*.test"]
-    [processes.trigger.process]
-      on_start = ["example fail"]
 
 # [[processes]]
 # name = "example fail2"

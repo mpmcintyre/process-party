@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/fatih/color"
 	pp "github.com/mpmcintyre/process-party/internal"
@@ -139,7 +141,7 @@ using ctrl+c or input "exit" into the command line.
 				switch target {
 				case "all":
 					if len(s) < 2 {
-						fmt.Println("No input provided")
+						color.HiBlack("No input provided")
 						continue
 					}
 					input := s[1:]
@@ -175,7 +177,7 @@ e.g. "cmd:echo hello", or pipe input to all commands using
 or input "exit" into the command line.`)
 
 				case "exit":
-					fmt.Println("Exiting all")
+					color.HiBlack("Exiting all")
 					for _, context := range runContexts {
 						context.BuzzkillProcess()
 					}
@@ -183,7 +185,7 @@ or input "exit" into the command line.`)
 
 				default:
 					if len(s) < 2 {
-						fmt.Println("No input provided")
+						color.HiBlack("No input provided")
 						continue
 					}
 					found := false
@@ -216,6 +218,21 @@ or input "exit" into the command line.`)
 		for _, context := range runContexts {
 			context.Start()
 		}
+
+		// Listen to signals
+		sigc := make(chan os.Signal, 1)
+		signal.Notify(sigc,
+			syscall.SIGHUP,
+			syscall.SIGINT,
+			syscall.SIGTERM,
+			syscall.SIGQUIT)
+		go func() {
+			<-sigc
+			color.HiBlack("Recieved exit signal, exiting all")
+			for _, context := range runContexts {
+				context.BuzzkillProcess()
+			}
+		}()
 
 		wg.Wait()
 

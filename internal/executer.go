@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-var executionBuzkillMonitor chan bool
-
 // Communication from task to main thread
 type (
 	ExecutionExitEvent int
@@ -30,6 +28,7 @@ type (
 		buzzkillEmitters         []chan bool          // Allow external processes to monitor to trigger a buzzkill event
 		internalExitNotifiers    []chan bool          // All related internal goroutines should lock onto this notifier to exit when the process is killed
 		externalProcessNotifiers []chan ProcessStatus // Allow external processes to hook into process notifications (running, failed, exited, restarting etc,)
+		executionExitNotifier    chan bool            // Used to have a single exit notifier for multiple creations of an excecutioion
 		triggers                 []chan string
 		stdIn                    chan string
 		exitCode                 int
@@ -93,6 +92,8 @@ func (p *Process) CreateContext(wg *sync.WaitGroup) *ExecutionContext {
 	// Set IO
 	context.readPipe, context.writePipe = io.Pipe()
 
+	// Internal buzzkill
+	context.executionExitNotifier = context.getInternalExitNotifier()
 	return context
 }
 
@@ -269,19 +270,13 @@ func (e *ExecutionContext) Write(input string) {
 
 // Loops over the processes in the config and provides a list of pointers to execution contexts for each process
 func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionContext {
-
 	// Create context and channel groups
 	contexts := []*ExecutionContext{}
-
 	for index, process := range config.Processes {
-
 		// Create context
 		newContext := process.CreateContext(
 			wg,
 		)
-
-		// processNotificationChannel := newContext.GetProcessNotificationChannel()
-
 		// Start listening to the threads channels fo multi-channel communcation
 		go func() {
 			externalKillCommand := newContext.getInternalExitNotifier()
@@ -299,7 +294,6 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionCo
 						}
 					}
 					break monitorLoop
-
 				case <-externalKillCommand:
 					break monitorLoop
 				}
@@ -327,7 +321,7 @@ func (c *ExecutionContext) execute() {
 	c.cmd.Stderr = c.errorWriter
 	c.cmd.Stdin = c.readPipe
 
-	displayedPid := false // Simple bool to show boolean at the start of the process
+	displayedPid := false // Simple bool to show and set boolean at the start of the process
 	// Wait for the start delay
 	c.infoWriter.Write([]byte(fmt.Sprintf("Starting process - %d second delay", c.Process.Delay)))
 	if c.Process.Delay > 0 {
@@ -336,20 +330,12 @@ func (c *ExecutionContext) execute() {
 	// Start the command
 	startErr := c.cmd.Start()
 	c.executionMutex.Unlock()
-	// if startErr == nil {
-	// }
-
 	processDone := make(chan struct{}, 1)
-
 	// Go wait somewhere else lamo (*insert you cant sit with us meme*)
 	go func() {
 		c.cmd.Wait()
 		close(processDone)
 	}()
-
-	if executionBuzkillMonitor == nil {
-		executionBuzkillMonitor = c.getInternalExitNotifier()
-	}
 
 commandLoop:
 	for {
@@ -361,7 +347,7 @@ commandLoop:
 				c.writePipe.Write([]byte(value + "\n"))
 			}
 
-		case <-executionBuzkillMonitor: // Recieved buzzkill
+		case <-c.executionExitNotifier: // Recieved buzzkill
 			c.exitEvent = ExitEventBuzzkilled
 			c.infoWriter.Write([]byte("Recieved buzzkill command"))
 			// Wait for timeout_on_exit duration
@@ -372,9 +358,12 @@ commandLoop:
 
 			// Display the PID on the first line
 			if !displayedPid && c.cmd.Process != nil {
-				c.setProcessStatus(ProcessStatusRunning)
-				c.infoWriter.Write([]byte(fmt.Sprintf("PID = %d", c.cmd.Process.Pid)))
+				c.executionMutex.RLock()
 				c.Process.Pid = fmt.Sprintf("%d", c.cmd.Process.Pid)
+				c.executionMutex.RUnlock()
+
+				c.setProcessStatus(ProcessStatusRunning)
+				c.infoWriter.Write([]byte(fmt.Sprintf("PID = %s", c.Process.Pid)))
 				displayedPid = true
 			}
 
@@ -409,7 +398,6 @@ commandLoop:
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
-	c.cmd.Wait() // This is likely redundant as we listen up top, but best be sure
 
 	// The process exits so quick we need to delay to ensure that the buzzkill command is sent
 	time.Sleep(time.Duration(10) * time.Millisecond)
@@ -481,7 +469,6 @@ func (e *ExecutionContext) Start() {
 				}()
 
 			case <-exitNotifier:
-				e.BuzzkillProcess()
 				break monitorLoop
 			}
 		}

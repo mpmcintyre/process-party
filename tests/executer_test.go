@@ -127,6 +127,7 @@ func TestExternalBuzzkill(t *testing.T) {
 	}
 	cmdSettings := testHelpers.CreateSleepCmdSettings(sleepDuration)
 	buzzkillTask := createBuzzkillProcess(cmdSettings.Cmd, cmdSettings.Args)
+	buzzkillTask.Silent = true
 
 	context := buzzkillTask.CreateContext(
 		&wg,

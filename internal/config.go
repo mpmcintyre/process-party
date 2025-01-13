@@ -357,6 +357,9 @@ func (c *Config) ParseFile(path string, silent bool) error {
 		// Set general values
 		c.Processes[i].SeperateNewLines = c.SeperateNewLines
 		c.Processes[i].ShowTimestamp = c.ShowTimestamp
+		if c.Processes[i].Trigger.FileSystem.DebounceTime == 0 {
+			c.Processes[i].Trigger.FileSystem.DebounceTime = 1
+		}
 		// Check for duplicate uniques
 		if uniqueChecks[c.Processes[i].Name] {
 			return errors.New("Config contains duplicate unique fields. Offending item: Name - " + c.Processes[i].Name)

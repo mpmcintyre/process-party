@@ -322,10 +322,10 @@ func TestFsTriggersBasic(t *testing.T) {
 }
 
 // The trigger should not have more runs if the process is currently running
-func TestFsTriggersNoDoubleProcessing(t *testing.T) {
+func TestDebounce(t *testing.T) {
 	t.Parallel()
 
-	tempDir := filepath.Join(".tmp", "triggers", "double")
+	tempDir := filepath.Join(".tmp", "triggers", "debounce")
 	filename := "triggerFile"
 	createdFiles := 10
 	expectedRuns := 1
@@ -334,8 +334,9 @@ func TestFsTriggersNoDoubleProcessing(t *testing.T) {
 	cmdSettings := testHelpers.CreateSleepCmdSettings(runtimeSec)
 	process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0, "trigger")
 	process.Silent = true
+	process.Trigger.FileSystem.DebounceTime = 100
 
-	assert.Less(t, triggerIntervals*createdFiles/1000, runtimeSec, "The intervals across all triggers cannot be longer that the total runtime")
+	assert.Less(t, triggerIntervals*createdFiles/1000, runtimeSec+int(process.Trigger.FileSystem.DebounceTime), "The intervals across all triggers cannot be longer that the total runtime")
 	var wg sync.WaitGroup
 	context := process.CreateContext(&wg)
 	context.Process.Trigger.FileSystem.Watch = []string{tempDir}
@@ -429,6 +430,125 @@ func TestFsTriggersNoDoubleProcessing(t *testing.T) {
 
 	assert.False(t, buzzkilled, "Should not recieve buzzkill signal")
 	assert.Equal(t, expectedRuns, runCounter, "Should run the on every propper trigger")
+
+	t.Cleanup(func() {
+		time.Sleep(time.Duration(1000) * time.Millisecond)
+		err = os.RemoveAll(tempDir)
+		if err != nil {
+		}
+	})
+}
+
+// The trigger should not have more runs if the process is currently running
+func TestTerminationFSOnTrigger(t *testing.T) {
+	t.Parallel()
+
+	tempDir := filepath.Join(".tmp", "triggers", "fsterm")
+	filename := "triggerFile"
+	createdFiles := 10
+	triggerIntervals := 50
+	runtimeSec := 1
+	cmdSettings := testHelpers.CreateSleepCmdSettings(runtimeSec)
+	process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0, "trigger")
+	process.Silent = true
+	process.Trigger.FileSystem.DebounceTime = 0
+	process.Trigger.EndOnNew = true
+
+	assert.Less(t, triggerIntervals*createdFiles/1000, runtimeSec+int(process.Trigger.FileSystem.DebounceTime), "The intervals across all triggers cannot be longer that the total runtime")
+	var wg sync.WaitGroup
+	context := process.CreateContext(&wg)
+	context.Process.Trigger.FileSystem.Watch = []string{tempDir}
+	context.Process.Trigger.FileSystem.Ignore = []string{}
+	context.Process.Trigger.FileSystem.ContainFilters = []string{}
+
+	os.RemoveAll(tempDir)
+	os.MkdirAll(tempDir, 0755)
+
+	err := pp.LinkProcessTriggers([]*pp.ExecutionContext{context})
+
+	assert.Nil(t, err, "File/Folder not found")
+	notificationsChannel := context.GetProcessNotificationChannel()
+	buzzkillChannel := context.GetBuzkillEmitter()
+
+	buzzkilled := false
+	runCounter := 0
+
+	var exitRecieved atomic.Bool
+	var failedRecieved atomic.Bool
+	var startRecieved atomic.Bool
+	var restartRecieved atomic.Bool
+	var notStartedRecieved atomic.Bool
+	var waitingForTrigger atomic.Bool
+	var unknownRecieved atomic.Bool
+
+	go func() {
+	monitorLoop:
+		for {
+			value, ok := <-notificationsChannel
+			if ok {
+				switch value {
+				case pp.ProcessStatusExited:
+					exitRecieved.Store(true)
+				case pp.ProcessStatusFailed:
+					failedRecieved.Store(true)
+				case pp.ProcessStatusRunning:
+					runCounter++
+					startRecieved.Store(true)
+				case pp.ProcessStatusRestarting:
+					restartRecieved.Store(true)
+				case pp.ProcessStatusNotStarted:
+					notStartedRecieved.Store(true)
+				case pp.ProcessStatusWaitingTrigger:
+					waitingForTrigger.Store(true)
+				default:
+					t.Log("Undeclared state recieved: " + context.GetStatusAsStr())
+					unknownRecieved.Store(true)
+				}
+			} else {
+				break monitorLoop
+			}
+
+		}
+
+	}()
+
+	go func() {
+		buzzkilled = <-buzzkillChannel
+	}()
+
+	context.Start()
+
+	go func() {
+		time.Sleep(time.Duration(100) * time.Millisecond)
+		// Create files in watched directory
+		for i := range createdFiles {
+			time.Sleep(time.Duration(triggerIntervals) * time.Millisecond)
+			f, err := os.Create(filepath.Join(tempDir, filename+strconv.Itoa(i)))
+			if err != nil {
+				t.Errorf("Failed to create file %s: %v", filepath.Join(tempDir, filename+strconv.Itoa(i)), err)
+				continue
+			}
+			f.Sync()
+			f.Close()
+		}
+		time.Sleep(time.Duration(runtimeSec) * time.Second)
+
+		context.BuzzkillProcess()
+	}()
+
+	wg.Wait()
+	time.Sleep(time.Duration(runtimeSec) * time.Second)
+
+	assert.True(t, exitRecieved.Load(), "Should recieve exit signal")
+	// assert.True(t, failedRecieved.Load(), "Should not recieve failed signal") // This can be trie or false
+	assert.True(t, startRecieved.Load(), "Should recieve running signal")
+	assert.False(t, restartRecieved.Load(), "Should not recieve restarted signal")
+	assert.True(t, notStartedRecieved.Load(), "Should recieve not started signal")
+	assert.True(t, waitingForTrigger.Load(), "Should recieve waiting for trigger")
+	assert.False(t, unknownRecieved.Load(), "Should not recieve uknown signal")
+
+	assert.False(t, buzzkilled, "Should not recieve buzzkill signal")
+	assert.Greater(t, runCounter, 1, "Should run the on every propper trigger")
 
 	t.Cleanup(func() {
 		time.Sleep(time.Duration(1000) * time.Millisecond)

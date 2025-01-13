@@ -34,3 +34,8 @@ unit-test-verbose: mocks
 
 tests-verbose: unit-test-verbose
 	go test -cpuprofile cpu.prof -memprofile mem.prof -bench . ./tests -v -timeout 30s 
+
+
+docker-tests:
+	docker build --tag pp-tests .
+	docker run pp-tests

@@ -29,7 +29,7 @@
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/main.go", // Point directly to main.go
-      "args": ["./examples/example.toml"], // Pass the additional argument
+      "args": ["./examples/example2.toml"], // Pass the additional argument
       "cwd": "${workspaceFolder}", // Set the current working directory
       "console": "integratedTerminal" // Use VS Code's integrated terminal for interactive input
     },

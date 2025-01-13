@@ -6,24 +6,43 @@ import (
 
 func (c *ExecutionContext) killExecution() error {
 	// Ensure we have the PID of the process
+	c.executionMutex.Lock()
+	defer c.executionMutex.Unlock()
+	for {
+		if c.cmd != nil {
+			c.errorWriter.Printf("CMD is not nil")
+			break
+		}
+	}
 	if c.cmd.Process == nil {
+		c.errorWriter.Printf("Process is nil")
 		return nil
 	}
 
 	if c.cmd.ProcessState != nil && c.cmd.ProcessState.Exited() {
+		c.errorWriter.Printf("Process already exited")
 		return nil
 	}
 
-	c.killAttemptCounter += 1
-	// https://github.com/air-verse/air/blob/master/runner/util_windows.go
-	if err := syscall.Kill(c.cmd.Process.Pid, syscall.SIGINT); err != nil {
-		if c.killAttemptCounter >= 3 {
-			return err
+	pid := c.cmd.Process.Pid
+	for {
+		c.errorWriter.Printf("Process attepted kills: %d", c.killAttemptCounter)
+
+		// https://github.com/air-verse/air/blob/master/runner/util_windows.go
+		if err := syscall.Kill(pid, syscall.SIGINT); err != nil {
+
+			c.errorWriter.Write([]byte(err.Error()))
+			if c.killAttemptCounter >= 3 {
+				break
+			}
+		} else {
+			break
 		}
-		c.killExecution()
+		c.killAttemptCounter += 1
 	}
 	c.cmd.Process.Kill()
 	c.killAttemptCounter = 0
-	c.setProcessStatus(ProcessStatusExited)
+	c.errorWriter.Printf("Process killed")
+
 	return nil
 }
