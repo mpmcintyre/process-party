@@ -399,12 +399,10 @@ func TestDebounce(t *testing.T) {
 	}()
 
 	context.Start()
-
+	time.Sleep(time.Duration(100) * time.Millisecond)
 	go func() {
-		time.Sleep(time.Duration(100) * time.Millisecond)
 		// Create files in watched directory
 		for i := range createdFiles {
-			time.Sleep(time.Duration(triggerIntervals) * time.Millisecond)
 			f, err := os.Create(filepath.Join(tempDir, filename+strconv.Itoa(i)))
 			if err != nil {
 				t.Errorf("Failed to create file %s: %v", filepath.Join(tempDir, filename+strconv.Itoa(i)), err)
@@ -412,12 +410,12 @@ func TestDebounce(t *testing.T) {
 			}
 			f.Sync()
 			f.Close()
+			time.Sleep(time.Duration(triggerIntervals) * time.Millisecond)
 		}
-
-		time.Sleep(time.Duration(runtimeSec)*time.Second - time.Duration(triggerIntervals*createdFiles)*time.Millisecond)
-		context.BuzzkillProcess()
 	}()
 
+	time.Sleep(time.Duration(runtimeSec+runtimeSec/2) * time.Second)
+	context.BuzzkillProcess()
 	wg.Wait()
 
 	assert.True(t, exitRecieved.Load(), "Should recieve exit signal")
@@ -532,12 +530,10 @@ func TestTerminationFSOnTrigger(t *testing.T) {
 			f.Close()
 		}
 		time.Sleep(time.Duration(runtimeSec) * time.Second)
-
 		context.BuzzkillProcess()
 	}()
 
 	wg.Wait()
-	time.Sleep(time.Duration(runtimeSec) * time.Second)
 
 	assert.True(t, exitRecieved.Load(), "Should recieve exit signal")
 	// assert.True(t, failedRecieved.Load(), "Should not recieve failed signal") // This can be trie or false

@@ -233,6 +233,8 @@ func (e *ExecutionContext) handleProcessExit() {
 		e.errorWriter.Write([]byte("Buzzkilling other processes"))
 		e.exitEvent = ExitEventBuzzkiller
 		e.emitBuzkill()
+		e.BuzzkillProcess()
+
 	case ExitCommandRestart:
 
 		e.restartCounter++
@@ -254,10 +256,9 @@ func (e *ExecutionContext) handleProcessExit() {
 
 	case ExitCommandWait:
 		if len(e.triggers) == 0 {
-			e.BuzzkillProcess()
+			// e.BuzzkillProcess()
 		}
 	}
-
 	e.setProcessStatus(ProcessStatusExited)
 }
 
