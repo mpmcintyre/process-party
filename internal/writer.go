@@ -47,7 +47,7 @@ func (c *customWriter) createPrefix() {
 
 // Utility function to simplyfy printing strings
 func (c customWriter) Printf(format string, a ...any) {
-	c.Write([]byte(fmt.Sprintf(format, a...)))
+	c.Write([]byte(color.HiBlackString(fmt.Sprintf(format, a...))))
 }
 
 func (c customWriter) Write(p []byte) (int, error) {
@@ -75,9 +75,9 @@ func (c customWriter) Write(p []byte) (int, error) {
 
 	if c.process.SeperateNewLines {
 		for _, message := range x {
-			if emptyMessage(message) {
-				continue
-			}
+			// if emptyMessage(message) {
+			// 	continue
+			// }
 
 			if c.severity == "error" {
 				message = color.RedString(message)
@@ -85,7 +85,7 @@ func (c customWriter) Write(p []byte) (int, error) {
 			if c.process.ShowTimestamp {
 				message = timeString + "	" + message
 			}
-			n, err := c.w.Write([]byte(c.prefix + message + "\n"))
+			n, err := c.w.Write([]byte(c.prefix + message + "\n\r"))
 			if err != nil {
 				return n, err
 			}
