@@ -240,13 +240,13 @@ func (e *ExecutionContext) handleProcessExit() {
 		e.restartCounter++
 
 		if e.restartCounter >= e.Process.RestartAttempts && e.Process.RestartAttempts >= 0 {
-			e.infoWriter.Write([]byte("No restart attempts left, exiting"))
+			e.infoWriter.Printf("No restart attempts left, exiting")
 			return
 		}
 
 		e.setProcessStatus(ProcessStatusRestarting)
 		if e.Process.RestartAttempts > 0 {
-			e.infoWriter.Write([]byte(fmt.Sprintf("Process exited - Restarting, %d second restart delay, %d attempts remaining", e.Process.RestartDelay, e.Process.RestartAttempts-e.restartCounter)))
+			e.infoWriter.Printf("Process exited - Restarting, %d second restart delay, %d attempts remaining", e.Process.RestartDelay, e.Process.RestartAttempts-e.restartCounter)
 		}
 		if e.Process.RestartDelay > 0 {
 			time.Sleep(time.Duration(e.Process.RestartDelay) * time.Second)
@@ -324,7 +324,7 @@ func (c *ExecutionContext) execute() {
 
 	displayedPid := false // Simple bool to show and set boolean at the start of the process
 	// Wait for the start delay
-	c.infoWriter.Write([]byte(fmt.Sprintf("Starting process - %d second delay", c.Process.Delay)))
+	c.infoWriter.Printf("Starting process - %d second delay", c.Process.Delay)
 	if c.Process.Delay > 0 {
 		time.Sleep(time.Duration(c.Process.Delay) * time.Second)
 	}
@@ -350,7 +350,7 @@ commandLoop:
 
 		case <-c.executionExitNotifier: // Recieved buzzkill
 			c.exitEvent = ExitEventBuzzkilled
-			c.infoWriter.Write([]byte("Recieved buzzkill command"))
+			c.infoWriter.Printf("Recieved buzzkill command")
 			// Wait for timeout_on_exit duration
 			c.killExecution()
 			break commandLoop
@@ -364,7 +364,7 @@ commandLoop:
 				c.executionMutex.RUnlock()
 
 				c.setProcessStatus(ProcessStatusRunning)
-				c.infoWriter.Write([]byte(fmt.Sprintf("PID = %s", c.Process.Pid)))
+				c.infoWriter.Printf("PID = %s", c.Process.Pid)
 				displayedPid = true
 			}
 
@@ -374,7 +374,7 @@ commandLoop:
 				c.Status == ProcessStatusFailed ||
 				c.Status == ProcessStatusExited {
 				if c.cmd.ProcessState.ExitCode() == 0 {
-					c.errorWriter.Write([]byte("Detected Process exit"))
+					c.infoWriter.Printf("Detected Process exit")
 					c.exitEvent = ExitEventInternal
 				} else if c.cmd.ProcessState.ExitCode() > 0 {
 					c.errorWriter.Write([]byte("Detected Process failure"))
@@ -441,6 +441,10 @@ func (e *ExecutionContext) Start() {
 					triggerChan <- msg
 				}
 			}(trigger)
+		}
+
+		if e.Process.Trigger.RunOnStart {
+			go e.execute()
 		}
 
 	monitorLoop:

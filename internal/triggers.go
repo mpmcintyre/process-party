@@ -70,7 +70,7 @@ func (c *ExecutionContext) recursivelyWatch(event fsnotify.Event, watcher *fsnot
 						return
 					}
 
-					c.infoWriter.Write([]byte(fmt.Sprintf("A new subdirectory was created in FS watcher, monitoring %s", absPath)))
+					c.infoWriter.Printf("A new subdirectory was created in FS watcher, monitoring %s", absPath)
 					err = watcher.Add(absPath)
 					if err != nil {
 						c.errorWriter.Write([]byte(fmt.Sprintf("Could not monitor file, error: %s", err.Error())))
@@ -113,7 +113,7 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 			continue
 		}
 
-		c.infoWriter.Write([]byte("Monitoring path: " + absPath))
+		c.infoWriter.Printf("Monitoring path: %s", absPath)
 
 		addedPaths = append(addedPaths, absPath)
 		err = watcher.Add(absPath)
@@ -156,7 +156,7 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 					watcher.Close()
 				}
 			case <-exitChannel:
-				c.infoWriter.Write([]byte("Process exiting, closing FS watcher"))
+				c.infoWriter.Printf("Process exiting, closing FS watcher")
 				watcher.Close()
 				return
 			}

@@ -34,9 +34,10 @@ type (
 	}
 
 	Trigger struct {
-		EndOnNew   bool              `toml:"end_on_new" json:"end_on_new" yaml:"end_on_new"` // End old process on new trigger
-		FileSystem FileSystemTrigger `toml:"filesystem" json:"filesystem" yaml:"filesystem"` // Filesystem triggers
-		Process    ProcessTrigger    `toml:"process" json:"process" yaml:"process"`          // Process triggers
+		RunOnStart bool              `toml:"run_on_start" json:"run_on_start" yaml:"run_on_start"`          // Runs the process on starting process party
+		EndOnNew   bool              `toml:"restart_process" json:"restart_process" yaml:"restart_process"` // End old process on new trigger
+		FileSystem FileSystemTrigger `toml:"filesystem" json:"filesystem" yaml:"filesystem"`                // Filesystem triggers
+		Process    ProcessTrigger    `toml:"process" json:"process" yaml:"process"`                         // Process triggers
 	}
 
 	Process struct {
