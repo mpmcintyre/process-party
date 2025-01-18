@@ -1,7 +1,6 @@
 # Example xproc configuration file
 
 show_timestamp = true
-indicate_every_line=true
 
 [[processes]]
 name = "npm"
@@ -12,13 +11,12 @@ color = "green"
 on_failure = "wait"
 on_complete =  "wait"
   [processes.trigger]
-    end_on_new = true
+    restart_process = true
     [processes.trigger.filesystem]
-      watch = [".", "."]
+      watch = [".", "./tests/.tmp"]
       ignore = ["test"]
       filter_for = ["*.test"]
     [processes.trigger.process]
-      # on_start = ["example fail"]
 
 
 [[processes]]
@@ -45,18 +43,3 @@ on_complete = "wait"
 restart_attempts = 0
 silent = false
 
-# [[processes]]
-# name = "example fail2"
-# command = "go"
-# args = ["run", "main.go"]
-# prefix = "BACK2"
-# color = "red"
-# on_failure = "buzzkill"
-
-# [[processes]]
-# name = "echo"
-# command = "echo hjello"
-# prefix = "FRONT"
-# color = "green"
-# on_failure = "buzzkill"
-# on_complete = "wait"

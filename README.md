@@ -47,38 +47,47 @@ process-party ./path/to/config.yaml -e "npm run start" --execute "cmd echo hello
 
 ### Global Configuration Options
 
-| Option                | Type   | Description                   | Default |
-| --------------------- | ------ | ----------------------------- | ------- |
-| `indicate_every_line` | `bool` | Separate output for each line | `false` |
-| `show_timestamp`      | `bool` | Display timestamps for output | `false` |
+| Option           | Type   | Description                   | Default |
+| ---------------- | ------ | ----------------------------- | ------- |
+| `show_timestamp` | `bool` | Display timestamps for output | `false` |
 
 ### Process Configuration Options
 
-| Option               | Type       | Description                               | Possible Values                                              |
-| -------------------- | ---------- | ----------------------------------------- | ------------------------------------------------------------ |
-| `name`               | `string`   | Unique name for the process               | Any string                                                   |
-| `command`            | `string`   | Command to execute                        | Any valid shell command                                      |
-| `args`               | `[]string` | Arguments for the command                 | List of strings                                              |
-| `prefix`             | `string`   | Prefix for output lines                   | Any string                                                   |
-| `color`              | `string`   | Output color for the process              | `yellow`, `blue`, `green`, `red`, `cyan`, `white`, `magenta` |
-| `on_failure`         | `string`   | Action on process failure                 | `buzzkill`, `wait`, `restart`                                |
-| `on_complete`        | `string`   | Action on process completion              | `buzzkill`, `wait`, `restart`                                |
-| `seperate_new_lines` | `bool`     | Separate output for each line             | `true`/`false`                                               |
-| `show_pid`           | `bool`     | Display process ID                        | `true`/`false`                                               |
-| `silent`             | `bool`     | Mute output from command                  | `true`/`false`                                               |
-| `delay`              | `int`      | Initial delay before starting             | Milliseconds                                                 |
-| `timeout_on_exit`    | `int`      | Timeout when exiting                      | Milliseconds                                                 |
-| `restart_delay`      | `int`      | Delay before restarting                   | Milliseconds                                                 |
-| `restart_attempts`   | `int`      | Number of restart attempts before exiting | Integer (negative implies always restart)                    |
+| Option               | Type            | Description                               | Possible Values                                              |
+| -------------------- | --------------- | ----------------------------------------- | ------------------------------------------------------------ |
+| `name`               | `string`        | Unique name for the process               | Any string                                                   |
+| `command`            | `string`        | Command to execute                        | Any valid shell command                                      |
+| `args`               | `[]string`      | Arguments for the command                 | List of strings                                              |
+| `prefix`             | `string`        | Prefix for output lines                   | Any string                                                   |
+| `color`              | `string`        | Output color for the process              | `yellow`, `blue`, `green`, `red`, `cyan`, `white`, `magenta` |
+| `on_failure`         | `string`        | Action on process failure                 | `buzzkill`, `wait`, `restart`                                |
+| `on_complete`        | `string`        | Action on process completion              | `buzzkill`, `wait`, `restart`                                |
+| `seperate_new_lines` | `bool`          | Separate output for each line             | `true`/`false`                                               |
+| `show_pid`           | `bool`          | Display process ID                        | `true`/`false`                                               |
+| `silent`             | `bool`          | Mute output from command                  | `true`/`false`                                               |
+| `delay`              | `int`           | Initial delay before starting             | Milliseconds                                                 |
+| `timeout_on_exit`    | `int`           | Timeout when exiting                      | Milliseconds                                                 |
+| `restart_delay`      | `int`           | Delay before restarting                   | Milliseconds                                                 |
+| `restart_attempts`   | `int`           | Number of restart attempts before exiting | Integer (negative implies always restart)                    |
+| `trigger`            | `triger config` | Configuration for triggering the process  | See [trigger config](#trigger-config)                        |
+
+### Trigger config
+
+| Option            | Type                         | Description                                       | Possible Values                                        |
+| ----------------- | ---------------------------- | ------------------------------------------------- | ------------------------------------------------------ |
+| `run_on_start`    | `bool`                       | Runs the process on starting process party        | `true`/`false`                                         |
+| `restart_process` | `bool`                       | End old process on new trigger and start again    | `true`/`false`                                         |
+| `filesystem`      | `filesystem trigger options` | Options for triggering on a filesystem event      | See [FS trigger optons](#file-system-trigger-options)  |
+| `process`         | `string`                     | Options for triggering on another process's state | See [Process trigger optons](#process-trigger-options) |
 
 ### File System Trigger Options
 
-| Option          | Type       | Description                      | Possible Values  |
-| --------------- | ---------- | -------------------------------- | ---------------- |
-| `non_recursive` | `bool`     | Do not watch subdirectories      | `true`/`false`   |
-| `watch`         | `[]string` | Directories/files to watch       | List of paths    |
-| `ignore`        | `[]string` | Directories/files to ignore      | List of paths    |
-| `filter_for`    | `[]string` | File patterns to include/exclude | List of patterns |
+| Option          | Type       | Description                              | Possible Values  |
+| --------------- | ---------- | ---------------------------------------- | ---------------- |
+| `non_recursive` | `bool`     | Do not watch subdirectories when created | `true`/`false`   |
+| `watch`         | `[]string` | Directories/files to watch               | List of paths    |
+| `ignore`        | `[]string` | Directories/files to ignore              | List of paths    |
+| `filter_for`    | `[]string` | File patterns to include/exclude         | List of patterns |
 
 ### Process Trigger Options
 
@@ -93,7 +102,7 @@ process-party ./path/to/config.yaml -e "npm run start" --execute "cmd echo hello
 ```yaml
 # Global settings
 indicate_every_line: true # Show prefix on every line
-show_timestamp: true # Show timestamps in output
+no_timestamp: true # Show timestamps in output
 
 processes:
   - name: "web-server" # Process name
@@ -107,9 +116,13 @@ processes:
     delay: 0 # Startup delay in milliseconds
     restart_attempts: 0 # Number of restart attempts (-1 for infinite)
     restart_delay: 0 # Delay before restart
+    on_failure: "buzzkill" # Exit behavior on failure (kill all processes)
+    on_complete: "buzzkill" # Exit behavior on complete (kill all processes)
 
     # File system triggers
     trigger:
+      run_on_start: false
+      restart_process: true
       filesystem:
         watch: ["./src"] # Directories to watch
         ignore: ["node_modules"] # Directories to ignore
@@ -118,7 +131,7 @@ processes:
 
       # Process triggers
       process:
-        on_start: ["db"] # Run when these processes start
+        on_start: ["database"] # Run when these processes start
         on_complete: [] # Run when these processes complete
         on_error: [] # Run when these processes error
 
@@ -126,7 +139,7 @@ processes:
     command: "mongod"
     prefix: "db"
     color: "blue"
-    on_failure: "buzzkill" # Exit behavior on failure
+    on_failure: "buzzkill" # Exit behavior on failure (kill all processes)
 ```
 
 ## Interactive CLI Usage
