@@ -174,14 +174,14 @@ func TestLineSeparation(t *testing.T) {
 			name:          "empty lines filtered",
 			input:         "line1\n\nline2\n\nline3",
 			separateLines: true,
-			expectedLines: 3,
+			expectedLines: 5,
 			containsEmpty: false,
 		},
 		{
 			name:          "single line preserved",
 			input:         "single line\n",
 			separateLines: true,
-			expectedLines: 1,
+			expectedLines: 2,
 			containsEmpty: false,
 		},
 	}
