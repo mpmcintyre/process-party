@@ -66,8 +66,8 @@ type (
 
 	Config struct {
 		Processes        []Process `toml:"processes" json:"processes" yaml:"processes"`
-		SeperateNewLines bool      `toml:"indicate_every_line" json:"indicate_every_line" yaml:"indicate_every_line"`
-		ShowTimestamp    bool      `toml:"show_timestamp" json:"show_timestamp" yaml:"show_timestamp"`
+		SeperateNewLines bool
+		ShowTimestamp    bool `toml:"show_timestamp" json:"show_timestamp" yaml:"show_timestamp"`
 		filePresent      bool
 	}
 )

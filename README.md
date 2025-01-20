@@ -1,5 +1,7 @@
 # Process Party 🎉
 
+[Air](https://github.com/air-verse/air) 🤝 meets 🤝 [Concurrently](https://www.npmjs.com/package/concurrently)
+
 Process Party is a powerful CLI tool that allows you to run and manage multiple processes simultaneously with unified standard output, interactive input capabilities, and file system triggers.
 
 ## Features
@@ -38,6 +40,21 @@ process-party ./path/to/config.json
 process-party ./path/to/config.toml
 ```
 
+#### Generate a template configuration file
+
+```bash
+# Basic usage
+process-party ./path/to/config-template.yaml -g
+
+or
+
+process-party ./path/to/config-template.yaml --generate
+
+# Or with JSON or TOML
+process-party ./path/to/config.json -g
+process-party ./path/to/config.toml -g
+```
+
 ### Inline Commands
 
 ```bash
@@ -70,6 +87,14 @@ process-party ./path/to/config.yaml -e "npm run start" --execute "cmd echo hello
 | `restart_delay`      | `int`           | Delay before restarting                   | Milliseconds                                                 |
 | `restart_attempts`   | `int`           | Number of restart attempts before exiting | Integer (negative implies always restart)                    |
 | `trigger`            | `triger config` | Configuration for triggering the process  | See [trigger config](#trigger-config)                        |
+
+#### Actions on process failure/exit
+
+| Action     | Description                                                |
+| ---------- | ---------------------------------------------------------- |
+| `buzzkill` | Stop all running processes and exit                        |
+| `wait`     | Exit quitely and wait for all remaining processes/triggers |
+| `restart`  | Restart the process - until no restart attempts remain     |
 
 ### Trigger config
 
