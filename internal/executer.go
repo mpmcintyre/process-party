@@ -35,7 +35,7 @@ type (
 		executionMutex           *sync.RWMutex
 		Status                   ProcessStatus
 		restartCounter           int
-		killAttemptCounter       int
+		internalExit             bool
 	}
 )
 
@@ -252,7 +252,7 @@ func (e *ExecutionContext) handleProcessExit() {
 			time.Sleep(time.Duration(e.Process.RestartDelay) * time.Second)
 		}
 		// Recursive call
-		e.execute()
+		e.execute(nil)
 
 	case ExitCommandWait:
 		if len(e.triggers) == 0 {
@@ -309,20 +309,18 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionCo
 }
 
 // Actual execution of the desired process/execution context.
-func (c *ExecutionContext) execute() {
+func (c *ExecutionContext) execute(started chan bool) {
 	c.setProcessStatus(ProcessStatusNotStarted)
 	c.executionMutex.Lock()
 	// Create command
-	// c.Process.Args = append(c.Process.Args, "--color=force")
 	c.cmd = exec.Command(c.Process.Command, c.Process.Args...)
 	c.cmd.Env = os.Environ() // Set the full environment, including PATH
 	// Create IO
-
 	c.cmd.Stdout = c.infoWriter
 	c.cmd.Stderr = c.errorWriter
 	c.cmd.Stdin = c.readPipe
-
 	displayedPid := false // Simple bool to show and set boolean at the start of the process
+	c.internalExit = false
 	// Wait for the start delay
 	c.infoWriter.Printf("Starting process - %d second delay", c.Process.Delay)
 	if c.Process.Delay > 0 {
@@ -366,6 +364,9 @@ commandLoop:
 				c.setProcessStatus(ProcessStatusRunning)
 				c.infoWriter.Printf("PID = %s", c.Process.Pid)
 				displayedPid = true
+				if started != nil {
+					started <- true
+				}
 			}
 
 			// Handle the process exiting
@@ -377,13 +378,16 @@ commandLoop:
 					c.infoWriter.Printf("Detected Process exit")
 					c.exitEvent = ExitEventInternal
 				} else if c.cmd.ProcessState.ExitCode() > 0 {
-					c.errorWriter.Write([]byte("Detected Process failure"))
-					c.setProcessStatus(ProcessStatusFailed)
+					if !c.internalExit {
+						c.errorWriter.Write([]byte("Detected Process failure"))
+						c.setProcessStatus(ProcessStatusFailed)
+					}
 				} else if startErr != nil {
 					c.errorWriter.Write([]byte("Failed to start"))
 					c.errorWriter.Write([]byte(startErr.Error()))
 					c.setProcessStatus(ProcessStatusFailed)
 					c.exitEvent = ExitEventInternal
+					started <- true
 				}
 				c.exitCode = c.cmd.ProcessState.ExitCode()
 				break commandLoop
@@ -402,6 +406,7 @@ commandLoop:
 
 	// The process exits so quick we need to delay to ensure that the buzzkill command is sent
 	time.Sleep(time.Duration(10) * time.Millisecond)
+
 	c.handleProcessExit()
 }
 
@@ -427,14 +432,14 @@ func (e *ExecutionContext) Start() {
 		defer e.end()
 
 		if len(e.triggers) == 0 {
-			e.execute()
+			e.execute(nil)
 			return
 		}
 
 		e.setProcessStatus(ProcessStatusWaitingTrigger)
 
 		// Start a goroutine for each trigger to forward messages
-		triggerChan := make(chan string, 50)
+		triggerChan := make(chan string)
 		for _, trigger := range e.triggers {
 			go func(t chan string) {
 				for msg := range t {
@@ -443,35 +448,44 @@ func (e *ExecutionContext) Start() {
 			}(trigger)
 		}
 
+		started := make(chan bool)
+
 		if e.Process.Trigger.RunOnStart {
-			go e.execute()
+			go e.execute(started)
+			// Block the thread until the process started/ended properly
+			<-started
 		}
 
 	monitorLoop:
 		for {
 			select {
 			case message := <-triggerChan:
-				e.infoWriter.Printf("%s\n", message)
+				e.infoWriter.Printf("%s", message)
 				if e.Status != ProcessStatusWaitingTrigger {
 					if !e.Process.Trigger.EndOnNew {
 						e.errorWriter.Printf("Can't start process, process is already running")
 						break
 					}
-					err := e.killExecution()
-					if err != nil {
-						e.BuzzkillProcess()
-					}
+				}
+
+				err := e.killExecution()
+				if err != nil {
+					e.errorWriter.Printf("An error occurred when stopping the process with PID %s: %s", e.Process.Pid, err.Error())
 				}
 
 				if e.exitEvent != ExitEventInternal {
 					break monitorLoop
 				}
+
 				go func() {
-					e.execute()
+					e.infoWriter.Printf("Executing process")
+					e.execute(started)
 					e.Process.Pid = ""
 					e.setProcessStatus(ProcessStatusWaitingTrigger)
-					time.Sleep(time.Duration(10) * time.Millisecond)
 				}()
+				// Block the thread until the process started/ended properly
+				<-started
+				e.infoWriter.Printf("Awaiting next trigger")
 
 			case <-exitNotifier:
 				break monitorLoop

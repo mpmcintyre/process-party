@@ -13,6 +13,7 @@ on_complete =  "wait"
   [processes.trigger]
     restart_process = true
     [processes.trigger.filesystem]
+      # debounce_ms = 50
       watch = [".", "./tests/.tmp"]
       ignore = ["test"]
       filter_for = ["*.test"]

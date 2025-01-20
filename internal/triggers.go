@@ -146,7 +146,7 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 				if filter(event.Name) && time.Since(debounceTimer) > time.Duration(debounceTime)*time.Millisecond {
 					c.recursivelyWatch(event, watcher)
 					filepath := strings.Split(event.Name, string(os.PathSeparator))
-					trigger <- fmt.Sprintf("FS trigger captured - %s	%s\n", event.Op, filepath[len(filepath)-1])
+					trigger <- fmt.Sprintf("FS trigger captured - %s	%s", event.Op, filepath[len(filepath)-1])
 					debounceTimer = time.Now()
 				}
 
@@ -167,7 +167,7 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 
 // Creates a channel that runs when the contexts emits the listening signal
 func (e *ExecutionContext) CreateProcessTrigger(signal ProcessStatus, message string) chan string {
-	trigger := make(chan string, 10)
+	trigger := make(chan string)
 
 	go func() {
 		exitChannel := e.getInternalExitNotifier()

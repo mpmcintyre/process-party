@@ -2,18 +2,17 @@ package pp
 
 import (
 	"os/exec"
-	"strconv"
+	"time"
 )
 
 func (c *ExecutionContext) killExecution() error {
 	// Ensure we have the PID of the process
 	c.executionMutex.Lock()
 	defer c.executionMutex.Unlock()
-	for {
-		if c.cmd != nil {
-			break
-		}
+	if c.cmd == nil {
+		return nil
 	}
+
 	if c.cmd.Process == nil {
 		return nil
 	}
@@ -22,22 +21,22 @@ func (c *ExecutionContext) killExecution() error {
 		return nil
 	}
 
-	pid := strconv.Itoa(c.cmd.Process.Pid)
+	pid := c.Process.Pid
+
+	c.infoWriter.Printf("Killing process - %s", pid)
 	// On Windows, we need to kill the entire process group to ensure child processes are terminated
 	// https://github.com/air-verse/air/blob/master/runner/util_windows.go
-	for {
+	kill := exec.Command("TASKKILL", "/T", "/F", "/PID", pid)
+	if err := kill.Run(); err != nil {
+		// Wait 100 miliseconds and try again
+		time.Sleep(time.Duration(100 * time.Millisecond))
 		kill := exec.Command("TASKKILL", "/T", "/F", "/PID", pid)
 		if err := kill.Run(); err != nil {
-			if c.killAttemptCounter >= 3 {
-				break
-			}
-			c.killExecution()
-		} else {
-			break
+			c.cmd.Process.Kill()
+			return err
 		}
-		c.killAttemptCounter += 1
 	}
 	c.cmd.Process.Kill()
-	c.killAttemptCounter = 0
+	c.internalExit = true
 	return nil
 }

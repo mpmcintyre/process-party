@@ -355,6 +355,11 @@ func (c *Config) ParseFile(path string, silent bool) error {
 			c.Processes[i].Args = append(strings.Split(c.Processes[i].Command, " ")[:1], c.Processes[i].Args...)
 			c.Processes[i].Command = strings.Split(c.Processes[i].Command, " ")[0]
 		}
+
+		if c.Processes[i].Trigger.FileSystem.DebounceTime == 0 {
+			c.Processes[i].Trigger.FileSystem.DebounceTime = 50
+		}
+
 		// Set general values
 		c.Processes[i].SeperateNewLines = true // This looks better, I think it should be hardcoded
 		c.Processes[i].ShowTimestamp = c.ShowTimestamp

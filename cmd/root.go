@@ -8,10 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/fatih/color"
 	pp "github.com/mpmcintyre/process-party/internal"
@@ -219,20 +217,20 @@ or input "exit" into the command line.`)
 			context.Start()
 		}
 
-		// Listen to signals
-		sigc := make(chan os.Signal, 1)
-		signal.Notify(sigc,
-			syscall.SIGHUP,
-			syscall.SIGINT,
-			syscall.SIGTERM,
-			syscall.SIGQUIT)
-		go func() {
-			<-sigc
-			color.HiBlack("Recieved exit signal, exiting all")
-			for _, context := range runContexts {
-				context.BuzzkillProcess()
-			}
-		}()
+		// // Listen to signals
+		// sigc := make(chan os.Signal, 1)
+		// signal.Notify(sigc,
+		// 	syscall.SIGHUP,
+		// 	syscall.SIGINT,
+		// 	syscall.SIGTERM,
+		// 	syscall.SIGQUIT)
+		// go func() {
+		// 	<-sigc
+		// 	color.HiBlack("Recieved exit signal, exiting all")
+		// 	for _, context := range runContexts {
+		// 		context.BuzzkillProcess()
+		// 	}
+		// }()
 
 		wg.Wait()
 
