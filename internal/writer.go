@@ -36,8 +36,11 @@ func (c *customWriter) createPrefix() {
 	}
 	c.prefix = "[" + c.process.Prefix
 	if c.process.DisplayPid {
-		c.prefix = c.prefix + "-" + c.process.Pid
-
+		if c.process.Pid == "" {
+			c.prefix = c.prefix + "-     "
+		} else {
+			c.prefix = c.prefix + "-" + c.process.Pid
+		}
 	}
 	c.prefix = c.prefix + "]"
 	colourFunc := c.process.GetFgColour()
@@ -73,35 +76,18 @@ func (c customWriter) Write(p []byte) (int, error) {
 	message = strings.Replace(message, "\r", "", -1)
 	x := strings.Split(message, "\n")
 
-	if c.process.SeperateNewLines {
-		for _, message := range x {
-			// if emptyMessage(message) {
-			// 	continue
-			// }
-
-			if c.severity == "error" {
-				message = color.RedString(message)
-			}
-			if c.process.ShowTimestamp {
-				message = timeString + "	" + message
-			}
-			n, err := c.w.Write([]byte(c.prefix + message + "\r\n"))
-			if err != nil {
-				return n, err
-			}
-
-		}
-	} else {
+	for _, message := range x {
 		if c.severity == "error" {
 			message = color.RedString(message)
 		}
 		if c.process.ShowTimestamp {
 			message = timeString + "	" + message
 		}
-		n, err := c.w.Write([]byte(c.prefix + message + "\n"))
+		n, err := c.w.Write([]byte(c.prefix + message + "\r\n"))
 		if err != nil {
 			return n, err
 		}
+
 	}
 
 	return len(p), nil

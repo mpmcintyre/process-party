@@ -1,12 +1,13 @@
 package pp
 
 import (
+	"strconv"
 	"syscall"
 	"time"
 )
 
 func (c *ExecutionContext) killExecution() error {
-	// Ensure we have the PID of the process
+	c.internalExit.Store(true)
 	c.executionMutex.Lock()
 	defer c.executionMutex.Unlock()
 
@@ -18,11 +19,19 @@ func (c *ExecutionContext) killExecution() error {
 		return nil
 	}
 
-	if c.cmd.ProcessState != nil && c.cmd.ProcessState.Exited() {
+	if c.cmd.ProcessState != nil {
 		return nil
 	}
 
-	pid := c.cmd.Process.Pid
+	if c.Process.Pid == "" {
+		return nil
+	}
+
+	pid, err := strconv.Atoi(c.Process.Pid)
+	if err != nil {
+		return err
+	}
+
 	c.infoWriter.Printf("Killing process - %d", pid)
 
 	// Send SIGINT signal first
@@ -35,6 +44,5 @@ func (c *ExecutionContext) killExecution() error {
 		}
 	}
 	c.cmd.Process.Kill()
-	c.internalExit = true
 	return nil
 }

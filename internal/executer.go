@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -35,7 +36,7 @@ type (
 		executionMutex           *sync.RWMutex
 		Status                   ProcessStatus
 		restartCounter           int
-		internalExit             bool
+		internalExit             atomic.Bool
 	}
 )
 
@@ -259,6 +260,7 @@ func (e *ExecutionContext) handleProcessExit() {
 			// e.BuzzkillProcess()
 		}
 	}
+
 	e.setProcessStatus(ProcessStatusExited)
 }
 
@@ -311,6 +313,8 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionCo
 // Actual execution of the desired process/execution context.
 func (c *ExecutionContext) execute(started chan bool) {
 	c.setProcessStatus(ProcessStatusNotStarted)
+	c.internalExit.Store(false)
+
 	c.executionMutex.Lock()
 	// Create command
 	c.cmd = exec.Command(c.Process.Command, c.Process.Args...)
@@ -320,12 +324,12 @@ func (c *ExecutionContext) execute(started chan bool) {
 	c.cmd.Stderr = c.errorWriter
 	c.cmd.Stdin = c.readPipe
 	displayedPid := false // Simple bool to show and set boolean at the start of the process
-	c.internalExit = false
 	// Wait for the start delay
 	c.infoWriter.Printf("Starting process - %d second delay", c.Process.Delay)
 	if c.Process.Delay > 0 {
 		time.Sleep(time.Duration(c.Process.Delay) * time.Second)
 	}
+	c.exitCode = -1
 	// Start the command
 	startErr := c.cmd.Start()
 	c.executionMutex.Unlock()
@@ -357,9 +361,9 @@ commandLoop:
 
 			// Display the PID on the first line
 			if !displayedPid && c.cmd.Process != nil {
-				c.executionMutex.RLock()
+				c.executionMutex.Lock()
 				c.Process.Pid = fmt.Sprintf("%d", c.cmd.Process.Pid)
-				c.executionMutex.RUnlock()
+				c.executionMutex.Unlock()
 
 				c.setProcessStatus(ProcessStatusRunning)
 				c.infoWriter.Printf("PID = %s", c.Process.Pid)
@@ -367,6 +371,13 @@ commandLoop:
 				if started != nil {
 					started <- true
 				}
+			}
+
+			// Handle triggers killing the process
+			if c.internalExit.Load() {
+				c.infoWriter.Printf("Trigger cancelled execution")
+				c.exitEvent = ExitEventInternal
+				break commandLoop
 			}
 
 			// Handle the process exiting
@@ -377,17 +388,18 @@ commandLoop:
 				if c.cmd.ProcessState.ExitCode() == 0 {
 					c.infoWriter.Printf("Detected Process exit")
 					c.exitEvent = ExitEventInternal
-				} else if c.cmd.ProcessState.ExitCode() > 0 {
-					if !c.internalExit {
-						c.errorWriter.Write([]byte("Detected Process failure"))
-						c.setProcessStatus(ProcessStatusFailed)
-					}
+				} else if c.cmd.ProcessState.ExitCode() > 0 && !c.internalExit.Load() {
+					c.errorWriter.Write([]byte("Detected Process failure"))
+					c.setProcessStatus(ProcessStatusFailed)
 				} else if startErr != nil {
 					c.errorWriter.Write([]byte("Failed to start"))
 					c.errorWriter.Write([]byte(startErr.Error()))
 					c.setProcessStatus(ProcessStatusFailed)
 					c.exitEvent = ExitEventInternal
-					started <- true
+					// Unblock trigger runtime if process failed to start
+					if started != nil {
+						started <- true
+					}
 				}
 				c.exitCode = c.cmd.ProcessState.ExitCode()
 				break commandLoop
@@ -406,7 +418,6 @@ commandLoop:
 
 	// The process exits so quick we need to delay to ensure that the buzzkill command is sent
 	time.Sleep(time.Duration(10) * time.Millisecond)
-
 	c.handleProcessExit()
 }
 
@@ -467,18 +478,14 @@ func (e *ExecutionContext) Start() {
 						break
 					}
 				}
-
 				err := e.killExecution()
 				if err != nil {
 					e.errorWriter.Printf("An error occurred when stopping the process with PID %s: %s", e.Process.Pid, err.Error())
 				}
-
 				if e.exitEvent != ExitEventInternal {
 					break monitorLoop
 				}
-
 				go func() {
-					e.infoWriter.Printf("Executing process")
 					e.execute(started)
 					e.Process.Pid = ""
 					e.setProcessStatus(ProcessStatusWaitingTrigger)

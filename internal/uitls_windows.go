@@ -6,9 +6,10 @@ import (
 )
 
 func (c *ExecutionContext) killExecution() error {
-	// Ensure we have the PID of the process
+	c.internalExit.Store(true)
 	c.executionMutex.Lock()
 	defer c.executionMutex.Unlock()
+
 	if c.cmd == nil {
 		return nil
 	}
@@ -17,7 +18,11 @@ func (c *ExecutionContext) killExecution() error {
 		return nil
 	}
 
-	if c.cmd.ProcessState != nil && c.cmd.ProcessState.Exited() {
+	if c.cmd.ProcessState != nil {
+		return nil
+	}
+
+	if c.Process.Pid == "" {
 		return nil
 	}
 
@@ -37,6 +42,5 @@ func (c *ExecutionContext) killExecution() error {
 		}
 	}
 	c.cmd.Process.Kill()
-	c.internalExit = true
 	return nil
 }

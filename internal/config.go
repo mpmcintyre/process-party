@@ -42,15 +42,14 @@ type (
 
 	Process struct {
 		// Info
-		Name             string     `toml:"name" json:"name" yaml:"name"`                                           // Name of the process
-		Command          string     `toml:"command" json:"command" yaml:"command"`                                  // Command to run
-		Args             []string   `toml:"args" json:"args" yaml:"args"`                                           // Arguments for the command
-		Prefix           string     `toml:"prefix" json:"prefix" yaml:"prefix"`                                     // Prefix used for printing (empty for none)
-		Color            ColourCode `toml:"color" json:"color" yaml:"color"`                                        // Customize prefix colour
-		SeperateNewLines bool       `toml:"seperate_new_lines" json:"seperate_new_lines" yaml:"seperate_new_lines"` // Display prefix on every line or only once per output sequence
-		DisplayPid       bool       `toml:"show_pid" json:"show_pid" yaml:"show_pid"`                               // Show the PID of the process
-		StartStream      string     `toml:"stdin_on_start" json:"stdin_on_start" yaml:"stdin_on_start"`             // Stream sequence to the command on startup
-		Silent           bool       `toml:"silent" json:"silent" yaml:"silent"`                                     // Mute output from the command
+		Name        string     `toml:"name" json:"name" yaml:"name"`                               // Name of the process
+		Command     string     `toml:"command" json:"command" yaml:"command"`                      // Command to run
+		Args        []string   `toml:"args" json:"args" yaml:"args"`                               // Arguments for the command
+		Prefix      string     `toml:"prefix" json:"prefix" yaml:"prefix"`                         // Prefix used for printing (empty for none)
+		Color       ColourCode `toml:"color" json:"color" yaml:"color"`                            // Customize prefix colour
+		DisplayPid  bool       `toml:"show_pid" json:"show_pid" yaml:"show_pid"`                   // Show the PID of the process
+		StartStream string     `toml:"stdin_on_start" json:"stdin_on_start" yaml:"stdin_on_start"` // Stream sequence to the command on startup
+		Silent      bool       `toml:"silent" json:"silent" yaml:"silent"`                         // Mute output from the command
 		// Behaviour
 		Trigger         Trigger     `toml:"trigger" json:"trigger" yaml:"trigger"`                                           // Any triggers that can start the process
 		Delay           int         `toml:"delay" json:"delay" yaml:"delay"`                                                 // Delay on starting the process
@@ -65,10 +64,9 @@ type (
 	}
 
 	Config struct {
-		Processes        []Process `toml:"processes" json:"processes" yaml:"processes"`
-		SeperateNewLines bool
-		ShowTimestamp    bool `toml:"show_timestamp" json:"show_timestamp" yaml:"show_timestamp"`
-		filePresent      bool
+		Processes     []Process `toml:"processes" json:"processes" yaml:"processes"`
+		ShowTimestamp bool      `toml:"show_timestamp" json:"show_timestamp" yaml:"show_timestamp"`
+		filePresent   bool
 	}
 )
 
@@ -132,23 +130,23 @@ func (c *Config) GenerateExampleConfig(path string) error {
 	fmt.Printf("Generating config - %s\n", path)
 
 	exampleProcess := Process{
-		Name:             "my process",
-		Prefix:           "EXAMPLE",
-		Command:          "ls",
-		OnFailure:        "wait",
-		OnComplete:       "wait",
-		Args:             []string{},
-		Color:            ColourCmdGreen,
-		DisplayPid:       false,
-		Silent:           false,
-		SeperateNewLines: false,
-		Delay:            0,
-		RestartDelay:     0,
-		RestartAttempts:  0,
-		TimeoutOnExit:    1,
-		StartStream:      "",
+		Name:            "my process",
+		Prefix:          "EXAMPLE",
+		Command:         "ls",
+		OnFailure:       "wait",
+		OnComplete:      "wait",
+		Args:            []string{},
+		Color:           ColourCmdGreen,
+		DisplayPid:      false,
+		Silent:          false,
+		Delay:           0,
+		RestartDelay:    0,
+		RestartAttempts: 0,
+		TimeoutOnExit:   0,
+		StartStream:     "",
 		Trigger: Trigger{
 			FileSystem: FileSystemTrigger{
+				DebounceTime:   50,
 				Watch:          []string{},
 				Ignore:         []string{},
 				ContainFilters: []string{},
@@ -161,7 +159,6 @@ func (c *Config) GenerateExampleConfig(path string) error {
 		},
 	}
 
-	c.SeperateNewLines = true
 	c.ShowTimestamp = true
 	c.Processes = append(c.Processes, exampleProcess)
 
@@ -180,7 +177,6 @@ func (c *Config) GenerateExampleConfig(path string) error {
 		data, err = json.Marshal(c)
 	default:
 		return errors.New("unknown filetype provided for config generation -- .toml, .yaml/.yml, or .json supported")
-
 	}
 
 	if err != nil {
@@ -203,10 +199,9 @@ func (c *Config) GenerateExampleConfig(path string) error {
 // Creates an empty default config that needs to be populated
 func CreateConfig() *Config {
 	return &Config{
-		Processes:        []Process{},
-		SeperateNewLines: true,
-		ShowTimestamp:    true,
-		filePresent:      false,
+		Processes:     []Process{},
+		ShowTimestamp: true,
+		filePresent:   false,
 	}
 }
 
@@ -356,16 +351,15 @@ func (c *Config) ParseFile(path string, silent bool) error {
 			c.Processes[i].Command = strings.Split(c.Processes[i].Command, " ")[0]
 		}
 
-		if c.Processes[i].Trigger.FileSystem.DebounceTime == 0 {
-			c.Processes[i].Trigger.FileSystem.DebounceTime = 50
-		}
+		// if c.Processes[i].Trigger.FileSystem.DebounceTime == 0 {
+		// 	c.Processes[i].Trigger.FileSystem.DebounceTime = 50
+		// }
 
 		// Set general values
-		c.Processes[i].SeperateNewLines = true // This looks better, I think it should be hardcoded
 		c.Processes[i].ShowTimestamp = c.ShowTimestamp
-		if c.Processes[i].Trigger.FileSystem.DebounceTime == 0 {
-			c.Processes[i].Trigger.FileSystem.DebounceTime = 1
-		}
+		// if c.Processes[i].Trigger.FileSystem.DebounceTime == 0 {
+		// 	c.Processes[i].Trigger.FileSystem.DebounceTime = 1
+		// }
 		// Check for duplicate uniques
 		if uniqueChecks[c.Processes[i].Name] {
 			return errors.New("Config contains duplicate unique fields. Offending item: Name - " + c.Processes[i].Name)

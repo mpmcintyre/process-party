@@ -30,14 +30,13 @@ func createBaseProcess(command string, args []string, restartAttempts int, resta
 		DisplayPid: true,
 		Silent:     true,
 		// These must be set by the config file not the process
-		ShowTimestamp:    true,
-		SeperateNewLines: true,
-		Delay:            tpDelays,
-		RestartAttempts:  restartAttempts,
-		OnFailure:        tpExit,
-		OnComplete:       tpExit,
-		RestartDelay:     restartDelay,
-		TimeoutOnExit:    tpDelays,
+		ShowTimestamp:   true,
+		Delay:           tpDelays,
+		RestartAttempts: restartAttempts,
+		OnFailure:       tpExit,
+		OnComplete:      tpExit,
+		RestartDelay:    restartDelay,
+		TimeoutOnExit:   tpDelays,
 	}
 }
 
@@ -280,6 +279,8 @@ func TestFsTriggersBasic(t *testing.T) {
 	var waitingForTrigger atomic.Bool
 	var unknownRecieved atomic.Bool
 
+	ended := make(chan bool)
+
 	go func() {
 	monitorLoop:
 		for {
@@ -288,6 +289,7 @@ func TestFsTriggersBasic(t *testing.T) {
 				switch value {
 				case pp.ProcessStatusExited:
 					exitRecieved.Store(true)
+					ended <- true
 				case pp.ProcessStatusFailed:
 					failedRecieved.Store(true)
 				case pp.ProcessStatusRunning:
@@ -321,7 +323,6 @@ func TestFsTriggersBasic(t *testing.T) {
 		time.Sleep(time.Duration(100) * time.Millisecond)
 		// Create files in watched directory
 		for i := range createdFiles {
-			time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
 			f, err := os.Create(filepath.Join(tempDir, filename+strconv.Itoa(i)))
 			if err != nil {
 				t.Errorf("Failed to create file %s: %v", filepath.Join(tempDir, filename+strconv.Itoa(i)), err)
@@ -329,19 +330,23 @@ func TestFsTriggersBasic(t *testing.T) {
 			}
 			f.Sync()
 			f.Close()
+			if i < createdFiles {
+				<-ended
+			}
 		}
 		// Make sure the trigger does not run when an empty directory is created
 		for i := range createdDirectories {
-			time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
 			os.Mkdir(filepath.Join(tempDir, filename+"dir"+strconv.Itoa(i)), 0755)
+			if i < createdDirectories {
+				<-ended
+			}
 		}
 		// Create subdirectory for creating files inside a subdirectory
 		time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
 		os.MkdirAll(subDir, 0755)
-		time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
+		<-ended
 
 		for i := range createdFilesInSubdirectory {
-			time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
 			f, err := os.Create(filepath.Join(subDir, filename+strconv.Itoa(i)))
 			if err != nil {
 				t.Errorf("Failed to create file %s: %v", filepath.Join(subDir, filename+strconv.Itoa(i)), err)
@@ -349,6 +354,9 @@ func TestFsTriggersBasic(t *testing.T) {
 			}
 			f.Sync()
 			f.Close()
+			if i < createdFilesInSubdirectory {
+				<-ended
+			}
 		}
 
 		time.Sleep(time.Duration(triggerInterval) * time.Millisecond)
@@ -715,7 +723,7 @@ func TestTerminationFSOnTrigger(t *testing.T) {
 	runtimeSec := 1
 	cmdSettings := testHelpers.CreateSleepCmdSettings(runtimeSec)
 	process := createBaseProcess(cmdSettings.Cmd, cmdSettings.Args, 0, 0, "trigger")
-	process.Silent = true
+	process.Silent = false
 	process.Trigger.FileSystem.DebounceTime = 0
 	process.Trigger.EndOnNew = true
 
@@ -737,6 +745,7 @@ func TestTerminationFSOnTrigger(t *testing.T) {
 
 	buzzkilled := false
 	runCounter := 0
+	completedCounter := 0
 
 	var exitRecieved atomic.Bool
 	var failedRecieved atomic.Bool
@@ -746,6 +755,8 @@ func TestTerminationFSOnTrigger(t *testing.T) {
 	var waitingForTrigger atomic.Bool
 	var unknownRecieved atomic.Bool
 
+	started := make(chan bool)
+
 	go func() {
 	monitorLoop:
 		for {
@@ -754,9 +765,11 @@ func TestTerminationFSOnTrigger(t *testing.T) {
 				switch value {
 				case pp.ProcessStatusExited:
 					exitRecieved.Store(true)
+					completedCounter++
 				case pp.ProcessStatusFailed:
 					failedRecieved.Store(true)
 				case pp.ProcessStatusRunning:
+					started <- true
 					runCounter++
 					startRecieved.Store(true)
 				case pp.ProcessStatusRestarting:
@@ -770,6 +783,7 @@ func TestTerminationFSOnTrigger(t *testing.T) {
 					unknownRecieved.Store(true)
 				}
 			} else {
+				t.Log("Monitor loop close")
 				break monitorLoop
 			}
 
@@ -795,8 +809,11 @@ func TestTerminationFSOnTrigger(t *testing.T) {
 			}
 			f.Sync()
 			f.Close()
+			if i < createdFiles {
+				<-started
+			}
 		}
-		time.Sleep(time.Duration(runtimeSec) * time.Second)
+		time.Sleep(time.Duration(runtimeSec+1) * time.Second)
 		context.BuzzkillProcess()
 	}()
 
@@ -811,7 +828,7 @@ func TestTerminationFSOnTrigger(t *testing.T) {
 	assert.False(t, unknownRecieved.Load(), "Should not recieve uknown signal")
 
 	assert.False(t, buzzkilled, "Should not recieve buzzkill signal")
-	assert.Greater(t, runCounter, 1, "Should run the on every propper trigger")
+	assert.Equal(t, runCounter, createdFiles, "Should run the on every propper trigger")
 
 	t.Cleanup(func() {
 		time.Sleep(time.Duration(1000) * time.Millisecond)

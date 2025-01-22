@@ -27,14 +27,13 @@ func createWaitProcess(command string, args []string, startDelay int) pp.Process
 		DisplayPid: true,
 		Silent:     true,
 		// These must be set by the config file not the process
-		ShowTimestamp:    false,
-		SeperateNewLines: true,
-		Delay:            startDelay,
-		RestartAttempts:  0,
-		OnFailure:        tpExit,
-		OnComplete:       tpExit,
-		RestartDelay:     tpDelays,
-		TimeoutOnExit:    tpDelays,
+		ShowTimestamp:   false,
+		Delay:           startDelay,
+		RestartAttempts: 0,
+		OnFailure:       tpExit,
+		OnComplete:      tpExit,
+		RestartDelay:    tpDelays,
+		TimeoutOnExit:   tpDelays,
 	}
 }
 
@@ -53,14 +52,13 @@ func createRestartProcess(command string, args []string, restartAttempts int, re
 		DisplayPid: true,
 		Silent:     true,
 		// These must be set by the config file not the process
-		ShowTimestamp:    true,
-		SeperateNewLines: true,
-		Delay:            tpDelays,
-		RestartAttempts:  restartAttempts,
-		OnFailure:        tpExit,
-		OnComplete:       tpExit,
-		RestartDelay:     restartDelay,
-		TimeoutOnExit:    tpDelays,
+		ShowTimestamp:   true,
+		Delay:           tpDelays,
+		RestartAttempts: restartAttempts,
+		OnFailure:       tpExit,
+		OnComplete:      tpExit,
+		RestartDelay:    restartDelay,
+		TimeoutOnExit:   tpDelays,
 	}
 }
 
@@ -79,14 +77,13 @@ func createBuzzkillProcess(command string, args []string) pp.Process {
 		DisplayPid: true,
 		Silent:     true,
 		// These must be set by the config file not the process
-		ShowTimestamp:    false,
-		SeperateNewLines: true,
-		Delay:            tpDelays,
-		RestartAttempts:  0,
-		OnFailure:        tpExit,
-		OnComplete:       tpExit,
-		RestartDelay:     tpDelays,
-		TimeoutOnExit:    tpDelays,
+		ShowTimestamp:   false,
+		Delay:           tpDelays,
+		RestartAttempts: 0,
+		OnFailure:       tpExit,
+		OnComplete:      tpExit,
+		RestartDelay:    tpDelays,
+		TimeoutOnExit:   tpDelays,
 	}
 }
 

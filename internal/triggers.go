@@ -143,11 +143,13 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 					watcher.Close()
 					return
 				}
-				if filter(event.Name) && time.Since(debounceTimer) > time.Duration(debounceTime)*time.Millisecond {
+				if filter(event.Name) {
 					c.recursivelyWatch(event, watcher)
-					filepath := strings.Split(event.Name, string(os.PathSeparator))
-					trigger <- fmt.Sprintf("FS trigger captured - %s	%s", event.Op, filepath[len(filepath)-1])
-					debounceTimer = time.Now()
+					if time.Since(debounceTimer) > time.Duration(debounceTime)*time.Millisecond {
+						filepath := strings.Split(event.Name, string(os.PathSeparator))
+						trigger <- fmt.Sprintf("FS trigger captured - %s	%s", event.Op, filepath[len(filepath)-1])
+						debounceTimer = time.Now()
+					}
 				}
 
 			case err, ok := <-watcher.Errors:

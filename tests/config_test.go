@@ -39,8 +39,7 @@ func createRunTask(increment int, nameStamp string) pp.Process {
 		Pid:             tpPID,
 		Silent:          true,
 		// These must be set by the config file not the process
-		ShowTimestamp:    false,
-		SeperateNewLines: false,
+		ShowTimestamp: false,
 		Trigger: pp.Trigger{
 			RunOnStart: true,
 			EndOnNew:   true,
@@ -183,7 +182,6 @@ func createNonDefaultConfig(numberOfProcesses int, nameStamp string, tempDir str
 	}
 
 	// Set the global settings in the config to non default values
-	config.SeperateNewLines = true
 	config.ShowTimestamp = true
 
 	jString, err := json.Marshal(config)
@@ -241,8 +239,8 @@ func TestConfigParsing(t *testing.T) {
 	yamlConfig.ParseFile(tempDir+testName+".yaml", true)
 	tomlConfig.ParseFile(tempDir+testName+".toml", true)
 
-	// Default config seperate new lines and show timestamp should be true
-	if !jsonConfig.SeperateNewLines || !jsonConfig.ShowTimestamp {
+	// Default config timestamp should be true
+	if !jsonConfig.ShowTimestamp {
 		t.Fatalf("config contains default value")
 	}
 

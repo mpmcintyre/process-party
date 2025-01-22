@@ -37,6 +37,7 @@ restart_attempts = 0
 silent = false
   [processes.trigger]
     [processes.trigger.filesystem]
+      debounce_ms = 0
       watch = [".", "."]
       ignore = ["test"]
       filter_for = ["*.test"]
