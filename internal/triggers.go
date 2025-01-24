@@ -49,19 +49,49 @@ func (c *ExecutionContext) fileFilter() func(string) bool {
 	}
 }
 
+// Recursivley watches directories if enabled
+func (c *ExecutionContext) watch(path string, watcher *fsnotify.Watcher) error {
+
+	err := watcher.Add(path)
+	if err != nil {
+		c.errorWriter.Write([]byte(fmt.Sprintf("Could not monitor file or folder, path: %s\nerror: %s", path, err.Error())))
+		return err
+	}
+
+	// If the entry is a folder recursivley call watch if enabled
+	dirs, err := os.ReadDir(path)
+	if err == nil {
+		for _, dir := range dirs {
+			if dir.Type().IsDir() {
+				if c.Process.Trigger.FileSystem.NonRecursive {
+					return nil
+				}
+				err := c.watch(filepath.Join(path, dir.Name()), watcher)
+				if err != nil {
+					return nil
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // Checks if the fs event was a creation event and if the item is a directory. If it is it adds it to the watcher
-func (c *ExecutionContext) recursivelyWatch(event fsnotify.Event, watcher *fsnotify.Watcher) {
+func (c *ExecutionContext) recursivelyWatchCreatedEvent(event fsnotify.Event, watcher *fsnotify.Watcher) {
 	if c.Process.Trigger.FileSystem.NonRecursive {
 		return
 	}
 
 	if event.Op == fsnotify.Create {
+		// Get the filetype of the created event
 		parentPath := filepath.Dir(event.Name)
 		dirs, err := os.ReadDir(parentPath)
 		if err != nil {
-			c.errorWriter.Write([]byte(fmt.Sprintf("Could not read directory %s, %s", event.Name, err.Error())))
+			c.errorWriter.Write([]byte(fmt.Sprintf("Could not read directory %s, %s", parentPath, err.Error())))
 		} else {
 			for _, dir := range dirs {
+
 				dirEntries := strings.Split(event.Name, string(os.PathSeparator))
 				if dir.Name() == dirEntries[len(dirEntries)-1] && dir.Type().IsDir() {
 					absPath, err := filepath.Abs(filepath.Clean(event.Name))
@@ -69,12 +99,8 @@ func (c *ExecutionContext) recursivelyWatch(event fsnotify.Event, watcher *fsnot
 						c.errorWriter.Write([]byte("Invalid path: " + event.Name))
 						return
 					}
-
 					c.infoWriter.Printf("A new subdirectory was created in FS watcher, monitoring %s", absPath)
-					err = watcher.Add(absPath)
-					if err != nil {
-						c.errorWriter.Write([]byte(fmt.Sprintf("Could not monitor file, error: %s", err.Error())))
-					}
+					c.watch(absPath, watcher)
 				}
 			}
 		}
@@ -115,13 +141,14 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 
 		c.infoWriter.Printf("Monitoring path: %s", absPath)
 
-		addedPaths = append(addedPaths, absPath)
-		err = watcher.Add(absPath)
+		err = c.watch(absPath, watcher)
+
 		if err != nil {
 			c.errorWriter.Write([]byte("File/Directory does not exist: " + item))
 			watcher.Close()
 			return nil, err
 		}
+		addedPaths = append(addedPaths, absPath)
 	}
 
 	trigger := make(chan string)
@@ -144,7 +171,7 @@ func (c *ExecutionContext) CreateFsTrigger() (chan string, error) {
 					return
 				}
 				if filter(event.Name) {
-					c.recursivelyWatch(event, watcher)
+					c.recursivelyWatchCreatedEvent(event, watcher)
 					if time.Since(debounceTimer) > time.Duration(debounceTime)*time.Millisecond {
 						filepath := strings.Split(event.Name, string(os.PathSeparator))
 						trigger <- fmt.Sprintf("FS trigger captured - %s	%s", event.Op, filepath[len(filepath)-1])
