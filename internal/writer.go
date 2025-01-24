@@ -77,13 +77,16 @@ func (c customWriter) Write(p []byte) (int, error) {
 	x := strings.Split(message, "\n")
 
 	for _, message := range x {
+		if emptyMessage(message) {
+			break
+		}
 		if c.severity == "error" {
 			message = color.RedString(message)
 		}
 		if c.process.ShowTimestamp {
 			message = timeString + "	" + message
 		}
-		n, err := c.w.Write([]byte(c.prefix + message + "\r\n"))
+		n, err := c.w.Write([]byte(c.prefix + message + "\n"))
 		if err != nil {
 			return n, err
 		}
