@@ -27,7 +27,6 @@ func createRunTask(increment int, nameStamp string) pp.Process {
 		OnComplete:      tpExit,
 		RestartAttempts: tpRestartAttempts,
 		RestartDelay:    tpDelays,
-		TimeoutOnExit:   tpDelays,
 		Delay:           tpDelays,
 		Name:            nameStamp + fmt.Sprintf("%d", increment),
 		Command:         nameStamp + fmt.Sprintf("%d", increment),

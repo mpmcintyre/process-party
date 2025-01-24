@@ -57,16 +57,15 @@ type (
 		OnFailure       ExitCommand `toml:"on_failure" json:"on_failure" yaml:"on_failure"`                                  // Exit behaviour on process failure
 		OnComplete      ExitCommand `toml:"on_complete,omitempty" json:"on_complete,omitempty" yaml:"on_complete,omitempty"` // Exit behaviour on successful exit
 		RestartAttempts int         `toml:"restart_attempts" json:"restart_attempts" yaml:"restart_attempts"`                // Restart attempts for the process (<0 to always restart)
-		TimeoutOnExit   int         `toml:"timeout_on_exit" json:"timeout_on_exit" yaml:"timeout_on_exit"`                   // Time allowed for the process to exit when externally killed before killing the process
 		// Runtime
-		ShowTimestamp bool   // Show timestamp private setting obtained from config
-		Pid           string // Private PID value assigned on process successful start
+		ShowTimestamp bool   `toml:"-" json:"-" yaml:"-"` // Show timestamp private setting obtained from config
+		Pid           string `toml:"-" json:"-" yaml:"-"` // Private PID value assigned on process successful start
 	}
 
 	Config struct {
 		Processes     []Process `toml:"processes" json:"processes" yaml:"processes"`
 		ShowTimestamp bool      `toml:"show_timestamp" json:"show_timestamp" yaml:"show_timestamp"`
-		filePresent   bool
+		filePresent   bool      `toml:"-" json:"-" yaml:"-"`
 	}
 )
 
@@ -142,7 +141,6 @@ func (c *Config) GenerateExampleConfig(path string) error {
 		Delay:           0,
 		RestartDelay:    0,
 		RestartAttempts: 0,
-		TimeoutOnExit:   0,
 		StartStream:     "",
 		Trigger: Trigger{
 			FileSystem: FileSystemTrigger{
@@ -351,15 +349,9 @@ func (c *Config) ParseFile(path string, silent bool) error {
 			c.Processes[i].Command = strings.Split(c.Processes[i].Command, " ")[0]
 		}
 
-		// if c.Processes[i].Trigger.FileSystem.DebounceTime == 0 {
-		// 	c.Processes[i].Trigger.FileSystem.DebounceTime = 50
-		// }
-
 		// Set general values
 		c.Processes[i].ShowTimestamp = c.ShowTimestamp
-		// if c.Processes[i].Trigger.FileSystem.DebounceTime == 0 {
-		// 	c.Processes[i].Trigger.FileSystem.DebounceTime = 1
-		// }
+
 		// Check for duplicate uniques
 		if uniqueChecks[c.Processes[i].Name] {
 			return errors.New("Config contains duplicate unique fields. Offending item: Name - " + c.Processes[i].Name)
