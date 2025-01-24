@@ -70,31 +70,29 @@ process-party ./path/to/config.yaml -e "npm run start" --execute "cmd echo hello
 
 ### Process Configuration Options
 
-| Option               | Type            | Description                               | Possible Values                                              |
-| -------------------- | --------------- | ----------------------------------------- | ------------------------------------------------------------ |
-| `name`               | `string`        | Unique name for the process               | Any string                                                   |
-| `command`            | `string`        | Command to execute                        | Any valid shell command                                      |
-| `args`               | `[]string`      | Arguments for the command                 | List of strings                                              |
-| `prefix`             | `string`        | Prefix for output lines                   | Any string                                                   |
-| `color`              | `string`        | Output color for the process              | `yellow`, `blue`, `green`, `red`, `cyan`, `white`, `magenta` |
-| `on_failure`         | `string`        | Action on process failure                 | `buzzkill`, `wait`, `restart`                                |
-| `on_complete`        | `string`        | Action on process completion              | `buzzkill`, `wait`, `restart`                                |
-| `seperate_new_lines` | `bool`          | Separate output for each line             | `true`/`false`                                               |
-| `show_pid`           | `bool`          | Display process ID                        | `true`/`false`                                               |
-| `silent`             | `bool`          | Mute output from command                  | `true`/`false`                                               |
-| `delay`              | `int`           | Initial delay before starting             | Milliseconds                                                 |
-| `timeout_on_exit`    | `int`           | Timeout when exiting                      | Milliseconds                                                 |
-| `restart_delay`      | `int`           | Delay before restarting                   | Milliseconds                                                 |
-| `restart_attempts`   | `int`           | Number of restart attempts before exiting | Integer (negative implies always restart)                    |
-| `trigger`            | `triger config` | Configuration for triggering the process  | See [trigger config](#trigger-config)                        |
+| Option             | Type            | Description                               | Possible Values                                              |
+| ------------------ | --------------- | ----------------------------------------- | ------------------------------------------------------------ |
+| `name`             | `string`        | Unique name for the process               | Any string                                                   |
+| `command`          | `string`        | Command to execute                        | Any valid shell command                                      |
+| `args`             | `[]string`      | Arguments for the command                 | List of strings                                              |
+| `prefix`           | `string`        | Prefix for output lines                   | Any string                                                   |
+| `color`            | `string`        | Output color for the process prefix       | `yellow`, `blue`, `green`, `red`, `cyan`, `white`, `magenta` |
+| `on_failure`       | `string`        | Action on process failure                 | `buzzkill`, `wait`, `restart`                                |
+| `on_complete`      | `string`        | Action on process completion              | `buzzkill`, `wait`, `restart`                                |
+| `show_pid`         | `bool`          | Display process ID                        | `true`/`false`                                               |
+| `silent`           | `bool`          | Mute output from command                  | `true`/`false`                                               |
+| `delay`            | `int`           | Initial delay before starting             | Milliseconds                                                 |
+| `restart_delay`    | `int`           | Delay before restarting                   | Milliseconds                                                 |
+| `restart_attempts` | `int`           | Number of restart attempts before exiting | Integer (negative implies always restart)                    |
+| `trigger`          | `triger config` | Configuration for triggering the process  | See [trigger config](#trigger-config)                        |
 
 #### Actions on process failure/exit
 
-| Action     | Description                                                |
-| ---------- | ---------------------------------------------------------- |
-| `buzzkill` | Stop all running processes and exit                        |
-| `wait`     | Exit quitely and wait for all remaining processes/triggers |
-| `restart`  | Restart the process - until no restart attempts remain     |
+| Action     | Description                                                            |
+| ---------- | ---------------------------------------------------------------------- |
+| `buzzkill` | Stop all running processes and exit                                    |
+| `wait`     | Exit quitely and wait for all remaining processes/triggers to complete |
+| `restart`  | Restart the process until no restart attempts remain                   |
 
 ### Trigger config
 
@@ -142,7 +140,7 @@ processes:
     restart_attempts: 0 # Number of restart attempts (-1 for infinite)
     restart_delay: 0 # Delay before restart
     on_failure: "buzzkill" # Exit behavior on failure (kill all processes)
-    on_complete: "buzzkill" # Exit behavior on complete (kill all processes)
+    on_complete: "wait" # Exit behavior on complete (kill all processes)
 
     # File system triggers
     trigger:
