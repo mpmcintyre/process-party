@@ -49,10 +49,10 @@ const (
 const (
 	ProcessStatusNotStarted ProcessStatus = iota
 	ProcessStatusRunning
-	ProcessStatusExited
-	ProcessStatusFailed
 	ProcessStatusRestarting
 	ProcessStatusWaitingTrigger
+	ProcessStatusExited
+	ProcessStatusFailed
 )
 
 // Returns the executions current status as a string
@@ -208,7 +208,6 @@ func (e *ExecutionContext) BuzzkillProcess() {
 func (e *ExecutionContext) setProcessStatus(status ProcessStatus) {
 	e.executionMutex.RLock()
 	defer e.executionMutex.RUnlock()
-
 	e.Status = status
 	for _, channel := range e.externalProcessNotifiers {
 		if channel != nil {
@@ -216,52 +215,6 @@ func (e *ExecutionContext) setProcessStatus(status ProcessStatus) {
 		}
 	}
 
-}
-
-// Handles how the execution context behaves on exit, depending on exit behaviour
-func (e *ExecutionContext) handleProcessExit() {
-	exitCommand := ExitCommandWait
-	if e.exitEvent != ExitEventBuzzkilled {
-		if e.Status == ProcessStatusFailed || e.Status == ProcessStatusNotStarted {
-			exitCommand = e.Process.OnFailure
-		} else {
-			exitCommand = e.Process.OnComplete
-		}
-	}
-
-	switch exitCommand {
-	case ExitCommandBuzzkill:
-		e.errorWriter.Write([]byte("Buzzkilling other processes"))
-		e.exitEvent = ExitEventBuzzkiller
-		e.emitBuzkill()
-		e.BuzzkillProcess()
-
-	case ExitCommandRestart:
-
-		e.restartCounter++
-
-		if e.restartCounter >= e.Process.RestartAttempts && e.Process.RestartAttempts >= 0 {
-			e.infoWriter.Printf("No restart attempts left, exiting")
-			return
-		}
-
-		e.setProcessStatus(ProcessStatusRestarting)
-		if e.Process.RestartAttempts > 0 {
-			e.infoWriter.Printf("Process exited - Restarting, %d second restart delay, %d attempts remaining", e.Process.RestartDelay, e.Process.RestartAttempts-e.restartCounter)
-		}
-		if e.Process.RestartDelay > 0 {
-			time.Sleep(time.Duration(e.Process.RestartDelay) * time.Second)
-		}
-		// Recursive call
-		e.execute(nil)
-
-	case ExitCommandWait:
-		if len(e.triggers) == 0 {
-			// e.BuzzkillProcess()
-		}
-	}
-
-	e.setProcessStatus(ProcessStatusExited)
 }
 
 // Writes to the executing execution context
@@ -310,8 +263,54 @@ func (config *Config) GenerateRunTaskContexts(wg *sync.WaitGroup) []*ExecutionCo
 	return contexts
 }
 
+// Handles how the execution context behaves on exit, depending on exit behaviour
+func (e *ExecutionContext) handleProcessExit() {
+	exitCommand := ExitCommandWait
+	if e.exitEvent != ExitEventBuzzkilled {
+		if e.Status == ProcessStatusFailed || e.Status == ProcessStatusNotStarted {
+			exitCommand = e.Process.OnFailure
+		} else {
+			exitCommand = e.Process.OnComplete
+		}
+	}
+
+	switch exitCommand {
+	case ExitCommandBuzzkill:
+		e.errorWriter.Write([]byte("Buzzkilling other processes"))
+		e.exitEvent = ExitEventBuzzkiller
+		e.emitBuzkill()
+		e.BuzzkillProcess()
+
+	case ExitCommandRestart:
+
+		e.restartCounter++
+
+		if e.restartCounter >= e.Process.RestartAttempts && e.Process.RestartAttempts >= 0 {
+			e.infoWriter.Printf("No restart attempts left, exiting")
+			return
+		}
+
+		e.setProcessStatus(ProcessStatusRestarting)
+		if e.Process.RestartAttempts > 0 {
+			e.infoWriter.Printf("Process exited - Restarting, %d second restart delay, %d attempts remaining", e.Process.RestartDelay, e.Process.RestartAttempts-e.restartCounter)
+		}
+		if e.Process.RestartDelay > 0 {
+			time.Sleep(time.Duration(e.Process.RestartDelay) * time.Second)
+		}
+		// Recursive call
+		e.execute(nil, nil)
+
+	case ExitCommandWait:
+		if len(e.triggers) == 0 {
+			// e.BuzzkillProcess()
+		}
+	}
+
+	e.setProcessStatus(ProcessStatusExited)
+}
+
 // Actual execution of the desired process/execution context.
-func (c *ExecutionContext) execute(started chan bool) {
+func (c *ExecutionContext) execute(started chan bool, ended chan bool) {
 	c.setProcessStatus(ProcessStatusNotStarted)
 	c.internalExit.Store(false)
 
@@ -336,8 +335,11 @@ func (c *ExecutionContext) execute(started chan bool) {
 	processDone := make(chan struct{}, 1)
 	// Go wait somewhere else lamo (*insert you cant sit with us meme*)
 	go func() {
-		c.cmd.Wait()
-		close(processDone)
+		defer close(processDone)
+		err := c.cmd.Wait()
+		if err != nil {
+			c.errorWriter.Write([]byte("Process wait error: " + err.Error()))
+		}
 	}()
 
 commandLoop:
@@ -353,7 +355,6 @@ commandLoop:
 		case <-c.executionExitNotifier: // Recieved buzzkill
 			c.exitEvent = ExitEventBuzzkilled
 			c.infoWriter.Printf("Recieved buzzkill command")
-			// Wait for timeout_on_exit duration
 			c.killExecution()
 			break commandLoop
 
@@ -368,6 +369,7 @@ commandLoop:
 				c.setProcessStatus(ProcessStatusRunning)
 				c.infoWriter.Printf("PID = %s", c.Process.Pid)
 				displayedPid = true
+				// Send started signal
 				if started != nil {
 					started <- true
 				}
@@ -381,7 +383,7 @@ commandLoop:
 			}
 
 			// Handle the process exiting
-			if c.cmd.Process != nil && c.cmd.ProcessState.ExitCode() >= 0 ||
+			if (c.cmd.Process != nil && c.cmd.ProcessState != nil && c.cmd.ProcessState.ExitCode() >= 0) ||
 				startErr != nil ||
 				c.Status == ProcessStatusFailed ||
 				c.Status == ProcessStatusExited {
@@ -417,8 +419,15 @@ commandLoop:
 	}
 
 	// The process exits so quick we need to delay to ensure that the buzzkill command is sent
-	time.Sleep(time.Duration(10) * time.Millisecond)
 	c.handleProcessExit()
+	if ended != nil {
+		select {
+		case ended <- true:
+			break
+		case <-time.After(time.Duration(100) * time.Millisecond):
+			break
+		}
+	}
 }
 
 // Cleanup operations on remaining channels
@@ -443,7 +452,7 @@ func (e *ExecutionContext) Start() {
 		defer e.end()
 
 		if len(e.triggers) == 0 {
-			e.execute(nil)
+			e.execute(nil, nil)
 			return
 		}
 
@@ -460,11 +469,16 @@ func (e *ExecutionContext) Start() {
 		}
 
 		started := make(chan bool)
-
+		ended := make(chan bool)
+		hasRun := false
 		if e.Process.Trigger.RunOnStart {
-			go e.execute(started)
+			go func() {
+				e.execute(started, ended)
+				e.setProcessStatus(ProcessStatusWaitingTrigger)
+			}()
 			// Block the thread until the process started/ended properly
 			<-started
+			hasRun = true
 		}
 
 	monitorLoop:
@@ -473,6 +487,7 @@ func (e *ExecutionContext) Start() {
 			case message := <-triggerChan:
 				e.infoWriter.Printf("%s", message)
 				if e.Status != ProcessStatusWaitingTrigger {
+					e.infoWriter.Printf("Current status: %s", e.GetStatusAsStr())
 					if !e.Process.Trigger.EndOnNew {
 						e.errorWriter.Printf("Can't start process, process is already running")
 						break
@@ -485,14 +500,20 @@ func (e *ExecutionContext) Start() {
 				if e.exitEvent != ExitEventInternal {
 					break monitorLoop
 				}
+
+				if hasRun && e.Status < ProcessStatusWaitingTrigger {
+					// Wait to get the end signal
+					<-ended
+
+				}
 				go func() {
-					e.execute(started)
+					hasRun = true
+					e.execute(started, ended)
 					e.Process.Pid = ""
 					e.setProcessStatus(ProcessStatusWaitingTrigger)
 				}()
 				// Block the thread until the process started/ended properly
 				<-started
-				e.infoWriter.Printf("Awaiting next trigger")
 
 			case <-exitNotifier:
 				break monitorLoop
