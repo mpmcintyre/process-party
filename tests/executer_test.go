@@ -33,7 +33,6 @@ func createWaitProcess(command string, args []string, startDelay int) pp.Process
 		OnFailure:       tpExit,
 		OnComplete:      tpExit,
 		RestartDelay:    tpDelays,
-		TimeoutOnExit:   tpDelays,
 	}
 }
 
@@ -58,7 +57,6 @@ func createRestartProcess(command string, args []string, restartAttempts int, re
 		OnFailure:       tpExit,
 		OnComplete:      tpExit,
 		RestartDelay:    restartDelay,
-		TimeoutOnExit:   tpDelays,
 	}
 }
 
@@ -83,7 +81,6 @@ func createBuzzkillProcess(command string, args []string) pp.Process {
 		OnFailure:       tpExit,
 		OnComplete:      tpExit,
 		RestartDelay:    tpDelays,
-		TimeoutOnExit:   tpDelays,
 	}
 }
 
