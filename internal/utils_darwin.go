@@ -33,12 +33,11 @@ func (c *ExecutionContext) killExecution() error {
 	}
 
 	c.infoWriter.Printf("Killing process - %d", pid)
-
 	// Send SIGINT signal first
 	if err := syscall.Kill(pid, syscall.SIGINT); err != nil {
 		// Wait 100 milliseconds and try again
 		time.Sleep(time.Duration(100 * time.Millisecond))
-		if err := syscall.Kill(pid, syscall.SIGINT); err != nil {
+		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
 			c.cmd.Process.Kill()
 			return err
 		}

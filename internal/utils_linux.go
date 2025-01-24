@@ -31,11 +31,10 @@ func (c *ExecutionContext) killExecution() error {
 	if err != nil {
 		return err
 	}
-
 	c.infoWriter.Printf("Killing process - %d", pid)
 	// https://github.com/air-verse/air/blob/master/runner/util_windows.go
-	if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
-		// Wait 100 milliseconds and try again
+	if err := syscall.Kill(pid, syscall.SIGINT); err != nil {
+		// Wait 100 milliseconds and try again, but kill this time
 		time.Sleep(time.Duration(100 * time.Millisecond))
 		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
 			c.cmd.Process.Kill()
