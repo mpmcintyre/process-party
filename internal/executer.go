@@ -336,10 +336,7 @@ func (c *ExecutionContext) execute(started chan bool, ended chan bool) {
 	// Go wait somewhere else lamo (*insert you cant sit with us meme*)
 	go func() {
 		defer close(processDone)
-		err := c.cmd.Wait()
-		if err != nil {
-			c.errorWriter.Write([]byte("Process wait error: " + err.Error()))
-		}
+		c.cmd.Wait()
 	}()
 
 commandLoop:
